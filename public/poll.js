@@ -630,16 +630,19 @@ function renderPlan() {
   if (!total) $("#plan").insertAdjacentHTML("afterbegin", noAnswer);
   drawEmoji($("#plan"));
 }
-// 候補の枠に空いている場所：人数に合う場所 → 人数の決まりがない場所の順。人数が合わない場所は数だけ出す
+// 候補の枠に空いている場所：人数に合う場所 → 人数の決まりがない場所 → 広めの場所の順。入りきらない場所は数だけ出す
 // 人数は、その枠に来られる人（参加できる＋調整が必要）
-const fitPlaces = (av, iso, w) => { const g = L.placesForWindow(av, iso, w.start, w.end, w.sure.length + w.maybe.length); return [...g.fit, ...g.unknown]; };
+const usablePlaces = g => [...g.fit, ...g.unknown, ...g.roomy];
+const fitPlaces = (av, iso, w) => usablePlaces(L.placesForWindow(av, iso, w.start, w.end, w.sure.length + w.maybe.length));
 function candPlaces(av, iso, w) {
-  const n = w.sure.length + w.maybe.length, g = L.placesForWindow(av, iso, w.start, w.end, n), list = [...g.fit, ...g.unknown];
-  const off = g.off.length ? `<span class="sub"> 人数（${n}人）が合わない場所 ${g.off.length}か所</span>` : "";
-  if (list.length) return `<p style="font-size:14px">📍 ${list.slice(0, 3).map(p => placeLink(p) + capTag(p)).join("・")}${list.length > 3 ? `<span class="sub"> ほか${list.length - 3}か所</span>` : ""}${off}</p>`;
-  return `<span class="pill todo" style="width:fit-content">${g.off.length ? `${n}人に合う場所なし` : "空いている場所なし"}</span>${off ? `<p class="sub" style="margin:0">${off}</p>` : ""}`;
+  const n = w.sure.length + w.maybe.length, g = L.placesForWindow(av, iso, w.start, w.end, n), list = usablePlaces(g);
+  const roomy = new Set(g.roomy);
+  const small = g.small.length ? `<span class="sub"> ${n}人には狭い場所 ${g.small.length}か所</span>` : "";
+  if (list.length) return `<p style="font-size:14px">📍 ${list.slice(0, 3).map(p => placeLink(p) + capTag(p, roomy.has(p))).join("・")}${list.length > 3 ? `<span class="sub"> ほか${list.length - 3}か所</span>` : ""}${small}</p>`;
+  return `<span class="pill todo" style="width:fit-content">${g.small.length ? `${n}人が入れる場所なし` : "空いている場所なし"}</span>${small ? `<p class="sub" style="margin:0">${small}</p>` : ""}`;
 }
-const capTag = p => p.capacity ? ` <span class="sub">${esc(L.capacityLabel(p.capacity))}</span>` : "";
+// 人数（「5〜8人」）。広めの場所には「広め」を足す
+const capTag = (p, roomy = false) => p.capacity ? ` <span class="sub">${esc(L.capacityLabel(p.capacity))}${roomy ? "・広め" : ""}</span>` : "";
 
 // その日に空いている場所の一覧（場所ごとの空き時間）。回答がなくても出す
 function placesOfDay(av, iso) {

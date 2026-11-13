@@ -377,25 +377,27 @@ test("場所の人数：JSON の capacity・表の「人数」列・メモの「
   assert.deepEqual(l.places[0].capacity, { min: 4, max: 8 });
 });
 
-test("場所の人数：候補に来られる人数に合う場所 → 人数の決まりなし → 合わない場所に分ける", () => {
+test("場所の人数：合う → 人数の決まりなし → 広め（人数が下限より少ない）→ 狭い（上限より多い）に分ける", () => {
   const avail = { places: [
     { id: "big", name: "大", capacity: { min: 7, max: 12 } }, { id: "mid", name: "中", capacity: { min: 5, max: 8 } },
-    { id: "free", name: "決まりなし" }], slots: ["big", "mid", "free"].map(place => ({ place, date: "2026-12-05", free: ["19:00-22:00"] })) };
+    { id: "tiny", name: "小", capacity: { max: 4 } }, { id: "free", name: "決まりなし" }],
+    slots: ["big", "mid", "tiny", "free"].map(place => ({ place, date: "2026-12-05", free: ["19:00-22:00"] })) };
   const g = L.placesForWindow(avail, "2026-12-05", 1140, 1260, 5);
-  assert.deepEqual([g.fit, g.unknown, g.off].map(x => x.map(p => p.id)), [["mid"], ["free"], ["big"]]);
+  assert.deepEqual([g.fit, g.unknown, g.roomy, g.small].map(x => x.map(p => p.id)), [["mid"], ["free"], ["big"], ["tiny"]]);
   assert.equal(L.capacityFit({ capacity: { max: 6 } }, 6), "fit");
-  assert.equal(L.capacityFit({ capacity: { min: 4 } }, 3), "off");
+  assert.equal(L.capacityFit({ capacity: { min: 4 } }, 3), "roomy");
+  assert.equal(L.capacityFit({ capacity: { max: 4 } }, 5), "small");
   assert.equal(L.capacityFit({}, 3), "unknown");
 });
 
-test("よい枠：空いている場所は、人数に合う場所と人数の決まりがない場所だけ数える", () => {
+test("よい枠：人数に合う場所と人数の決まりがない場所を先に数え、同じなら広めの場所の数で比べる。狭い場所は数えない", () => {
   const p = poll({ step: 60, dayStart: "18:00", dayEnd: "22:00" });
   const five = ["ア", "イ", "ウ", "エ", "オ"].map(name => ({ name, days: { "2026-12-05": { sure: ["18:00-22:00"] } } }));
   // 18-20 は大きい部屋（7人〜）だけ、20-22 は5〜8人の部屋が空いている
   const avail = { places: [{ id: "big", name: "大", capacity: { min: 7 } }, { id: "mid", name: "中", capacity: { min: 5, max: 8 } }],
     slots: [{ place: "big", date: "2026-12-05", free: ["18:00-20:00"] }, { place: "mid", date: "2026-12-05", free: ["20:00-22:00"] }] };
   const w = L.bestWindows(p, five, 120, { avail });
-  assert.deepEqual(w.map(x => [L.fmtMin(x.start), x.places]), [["20:00", 1], ["18:00", 0]]);
+  assert.deepEqual(w.map(x => [L.fmtMin(x.start), x.places, x.roomy]), [["20:00", 1, 0], ["18:00", 0, 1]]);
   // 人数を書いていない場所だけなら、前と同じに数える
   const plain = { places: [{ id: "x", name: "X" }], slots: [{ place: "x", date: "2026-12-05", free: ["18:00-20:00"] }] };
   assert.equal(L.fmtMin(L.bestWindows(p, five, 120, { avail: plain })[0].start), "18:00");
@@ -415,4 +417,18 @@ test("空き状況の時点：ISO の日時は「11/13 22:37」に。それ以�
   assert.equal(L.fmtAsOf("2026-11-13"), "11/13");
   assert.equal(L.fmtAsOf("11/13 20:00"), "11/13 20:00");
   assert.equal(L.fmtAsOf(""), "");
+});
+
+test("よい枠：4人で、どの部屋も「5人から」なら、広めの部屋が空いている時間を先に（場所のない時間を候補にしない）", () => {
+  // 実際にあったこと：部屋がすべて5人以上向けで、4人の日に 10-12・12-14・14-16（場所なし）が候補になった
+  const p = poll({ step: 60, dayStart: "10:00", dayEnd: "22:00" });
+  const four = ["ア", "イ", "ウ", "エ"].map(name => ({ name, days: { "2026-12-05": { sure: ["10:00-22:00"] } } }));
+  const room = (id, cap, ...free) => ({ id, cap, free });
+  const rs = [room("A", { min: 7, max: 12 }, "20:00-22:00"), room("B", { min: 5, max: 8 }, "20:00-22:00"), room("C", { min: 5, max: 8 }, "10:00-12:00"),
+    room("D", { max: 3 }, "14:00-16:00")];   // D は4人には狭い
+  const avail = { places: rs.map(x => ({ id: x.id, name: x.id, capacity: x.cap })), slots: rs.map(x => ({ place: x.id, date: "2026-12-05", free: x.free })) };
+  const w = L.bestWindows(p, four, 120, { avail }).slice(0, 3);
+  assert.deepEqual(w.map(x => [L.fmtMin(x.start), x.roomy]), [["20:00", 2], ["10:00", 1], ["12:00", 0]]);
+  // 広めの部屋は、人数に近い（下限が小さい）部屋を先に
+  assert.deepEqual(L.placesForWindow(avail, "2026-12-05", 1200, 1320, 4).roomy.map(p => p.id), ["B", "A"]);
 });
