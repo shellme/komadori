@@ -853,6 +853,7 @@ $("#tabAnswer").addEventListener("click", () => showTab("answer"));
 $("#tabResult").addEventListener("click", () => showTab("result"));
 const share = () => L.shareText({ ...poll, url: `${location.origin}/p/${pollId}` });
 $("#copyAnswerUrl").addEventListener("click", () => copy(share(), "文面をコピーしました"));
-$("#share").addEventListener("click", () => navigator.share?.({ text: share() }).catch(() => {}));
+// 「送る」は URL だけ（送り先のアプリが共有の表示を出す）。説明つきで送りたいときは「回答用の文面をコピー」
+$("#share").addEventListener("click", () => navigator.share?.({ url: `${location.origin}/p/${pollId}` }).catch(() => {}));
 
 load().catch(err => { console.error(err); $("#loading").textContent = "読み込めませんでした。通信を確かめて、開き直してください。"; });
