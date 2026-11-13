@@ -52,11 +52,11 @@ async function load() {
   syncFilter(); renderDays();
   if (!isSP()) $("#planFilters").open = true;
 
-  // 調整そのもの（決定・設定の編集をすぐ反映。削除されたら知らせる）
+  // 調整そのもの（設定の編集をすぐ反映。削除されたら知らせる）
   onSnapshot(doc(db, "polls", pollId), snap => {
     if (!snap.exists()) { $("#poll").hidden = true; $("#missing").hidden = false; return; }
     poll = { id: pollId, ...snap.data() };
-    renderHeader(!!adminKeyOk); renderDecided(); renderWho(); syncFilter(); buildTpl(); renderDays(); renderPlan();   // 期間が変わったら月の一覧も作り直す
+    renderHeader(!!adminKeyOk); renderWho(); syncFilter(); buildTpl(); renderDays(); renderPlan();   // 期間が変わったら月の一覧も作り直す
   });
 
   onSnapshot(doc(db, "polls", pollId, "places", "current"), snap => {
@@ -88,36 +88,6 @@ function renderHeader(isAdmin) {
   const curDur = +$("#dur").value;
   $("#dur").innerHTML = poll.durations.map(d => `<option value="${d}" ${d === curDur ? "selected" : ""}>${L.fmtDuration(d)}</option>`).join("");
 }
-
-// ---------- 決まった日時 ----------
-function decidedSlot() {
-  const d = poll.decided; if (!d) return null;
-  return { title: poll.title, date: d.date, start: d.start, end: d.end, place: d.place || "", details: `コマドリで決めた日時です ${location.origin}/p/${pollId}`, uid: pollId };
-}
-function renderDecided() {
-  const x = decidedSlot();
-  $("#decidedBox").hidden = !x;
-  if (!x) return;
-  $("#decidedWhen").textContent = `${L.fmtDay(x.date, poll.holidays)} ${x.start.replace(/^0/, "")}〜${x.end.replace(/^0/, "")}`;
-  $("#decidedPlace").textContent = x.place ? `📍 ${x.place}` : ""; $("#decidedPlace").hidden = !x.place;
-  $("#gcal").href = L.googleCalendarUrl(x);
-  $("#undecide").hidden = !adminKeyOk;
-  drawEmoji($("#decidedBox"));
-}
-$("#ics").addEventListener("click", () => {
-  const x = decidedSlot(); if (!x) return;
-  const url = URL.createObjectURL(new Blob([L.icsText(x)], { type: "text/calendar" }));
-  const a = Object.assign(document.createElement("a"), { href: url, download: `${poll.title}.ics` });
-  document.body.append(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(url), 1000);
-});
-$("#copyDecided").addEventListener("click", () => { const x = decidedSlot(); if (x) copy(L.slotLine(x), "文面をコピーしました"); });
-$("#undecide").addEventListener("click", async e => {
-  const b = e.currentTarget;
-  if (arm(b, "本当に取り消す")) return;
-  disarm(b, "決定を取り消す");
-  try { await call("decide", { pollId, key: adminKeyOk, decided: null }); toast("決定を取り消しました"); }
-  catch (err) { console.error(err); toast("取り消せませんでした"); }
-});
 
 // ---------- 名前 ----------
 // 名前の欄：回答している人がわかっているときは名前だけ（変える・切り替えるボタン）、まだのときは入力欄と一覧
@@ -621,7 +591,8 @@ function renderPlan() {
   const missing = w => people.filter(p => L.answeredOn(p.days, w.date)).map(p => p.name).filter(n => !w.sure.includes(n) && !w.maybe.includes(n));
   const notYetOn = iso => [...people.filter(p => !L.answeredOn(p.days, iso)).map(p => p.name), ...ast.pending];
   $("#planNote").innerHTML = notYet.length ? `<p class="warn">必須の人のうち ${esc(notYet.join("、"))} がまだ回答していないので、その人は数えずに候補を出しています</p>` : "";
-  // 候補の操作（この枠に決める・文面をコピー）は、管理用の URL で開いたときだけ出す（回答する人には要らない）
+  // 候補の「文面をコピー」は、管理用の URL で開いたときだけ出す（決めて知らせる人の操作。回答する人には要らない）
+  // 日程の決定はこのアプリでは記録しない（候補をしぼるところまで。決めたら文面をコピーして LINE などで知らせる）
   $("#plan").innerHTML = list.map(({ iso, wins }) => {
     const ngs = people.filter(p => p.days?.[iso]?.ng).map(p => p.name);
     // その日にまだ何も入れていない人（呼びたい人の一覧で、まだ1日も回答していない人も入れる）
@@ -652,7 +623,6 @@ function renderPlan() {
         ${namesLine("この時間は参加できない", missing(w), "", "sub")}
         ${namesLine("まだ回答していない", notYetOn(w.date), "", "sub")}
         ${adminKeyOk ? `<div class="actions">
-          <button type="button" class="btn sm${!isDecided(iso, w) && i === 0 ? " primary" : ""}" data-decide="${iso}|${w.start}|${w.end}|${esc(av ? (L.freePlaces(av, iso, w.start, w.end)[0]?.name || "") : "")}" ${isDecided(iso, w) ? "disabled" : ""}>${isDecided(iso, w) ? "✅ 決定した枠" : "この枠に決める"}</button>
           <button type="button" class="btn sm" data-copyslot="${iso}|${w.start}|${w.end}|${esc(av ? (L.freePlaces(av, iso, w.start, w.end)[0]?.name || "") : "")}">文面をコピー</button>
         </div>` : ""}
       </div>`).join("") : total ? `<p class="sub">候補になる時間帯がありません</p>` : ""}</div>
@@ -724,8 +694,6 @@ function timeChangeNotes(step, ds, de) {
   }
   if (hidden.size) notes.push(`${hidden.size}人の回答のうち、新しい1日の範囲の外の時間は出なくなります（回答は消えません）`);
   if (rounded.size) notes.push(`${rounded.size}人の回答に30分の区切りがあり、1時間に丸めて数えます。その人が回答を保存し直すと、30分の細かさは戻せません`);
-  const dc = poll.decided;
-  if (dc && (L.toMin(dc.start) % step || L.toMin(dc.end) % step || L.toMin(dc.start) < s0 || L.toMin(dc.end) > e0)) notes.push(`決まった日時（${dc.start}〜${dc.end}）が新しい刻み・範囲に合いません。決め直してください`);
   return notes;
 }
 
@@ -863,17 +831,7 @@ $("#reqChips").addEventListener("click", e => {
   const n = b.dataset.req; needed.has(n) ? needed.delete(n) : needed.add(n);
   renderPlan();
 });
-const isDecided = (iso, w) => poll.decided && poll.decided.date === iso && poll.decided.start === L.fmtMin(w.start) && poll.decided.end === L.fmtMin(w.end);
 $("#plan").addEventListener("click", async e => {
-  const dcd = e.target.closest("[data-decide]");
-  if (dcd) {
-    const [date, s0, e0, place] = dcd.dataset.decide.split("|");
-    if (!confirm(`${L.fmtDay(date, poll.holidays)} ${hm(+s0)}〜${hm(+e0)}${place ? ` @${place}` : ""} に決めますか？\n回答用の URL の上に出ます`)) return;
-    dcd.disabled = true;
-    try { await call("decide", { pollId, key: adminKeyOk, decided: { date, start: +s0, end: +e0, place } }); toast("決めました🎉"); scrollTo({ top: 0, behavior: "smooth" }); }
-    catch (err) { console.error(err); toast(err.message || "決められませんでした"); dcd.disabled = false; }
-    return;
-  }
   const b = e.target.closest("[data-copyslot]");
   if (b) {
     // 空いている場所があれば、1つめを「@場所」で付ける

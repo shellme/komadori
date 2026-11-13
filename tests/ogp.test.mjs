@@ -6,18 +6,15 @@ const req = createRequire(import.meta.url);
 const { ogpFor, ogpHtml, emojiPng, paddedIcon, OG_SIZE } = req("../functions/ogp.js");
 const { PNG } = req("../functions/node_modules/pngjs");
 
-const poll = { title: "12月の練習", emoji: "🎸", from: "2026-12-01", to: "2026-12-14", decided: null };
+const poll = { title: "12月の練習", emoji: "🎸", from: "2026-12-01", to: "2026-12-14" };
 
 test("OGP：名前（アイコンは画像）、説明に期間", () => {
   const o = ogpFor(poll);
   assert.equal(o.title, "12月の練習");   // アイコンは画像で出す
   assert.equal(o.desc, "12/1(火)〜12/14(月)の日程調整");
   assert.equal(o.image, "https://cdn.jsdelivr.net/gh/jdecked/twemoji@15.1.0/assets/72x72/1f3b8.png");
-});
-
-test("OGP：決まっていれば決まった日時と場所", () => {
-  const o = ogpFor({ ...poll, decided: { date: "2026-12-05", start: "14:00", end: "16:00", place: "スタジオA" } });
-  assert.equal(o.desc, "決定：12/5(土) 14:00〜16:00 @スタジオA");
+  // 前に決定を入れた日程調整でも、説明は期間のまま（決定はもう出さない）
+  assert.equal(ogpFor({ ...poll, decided: { date: "2026-12-05", start: "14:00", end: "16:00" } }).desc, "12/1(火)〜12/14(月)の日程調整");
 });
 
 test("OGP：アイコンの PNG（異体字セレクタ・ZWJ・なし）", () => {

@@ -17,7 +17,7 @@ after(async () => { await env?.cleanup(); });
 
 const pollData = uid => ({
   title: "練習", note: "", from: "2026-12-01", to: "2026-12-31", dayStart: "09:00", dayEnd: "23:00", step: 30,
-  durations: [120], holidays: [], exclude: [], invited: [], decided: null,
+  durations: [120], holidays: [], exclude: [], invited: [],
   adminKeyHash: "a".repeat(64), createdAt: serverTimestamp(), expireAt: Timestamp.fromDate(new Date("2027-03-31")), device: uid,
 });
 const person = uid => ({ name: "アキ", note: "", days: { "2026-12-05": { sure: ["13:00-15:00"], maybe: [], ng: false, note: "" } }, updatedAt: serverTimestamp(), device: uid });
@@ -82,7 +82,7 @@ test("調整を作る：刻みは30分か1時間だけ", async () => {
   await assertFails(setDoc(doc(as("u1"), "polls/zzzzzzzzzzzzzzzzzzz5"), { ...pollData("u1"), step: 15 }));
 });
 
-test("調整を作る：ログインなし・device 違い・ID が短い・決定済み・余計な項目はだめ", async () => {
+test("調整を作る：ログインなし・device 違い・ID が短い・決定（もう使わない項目）・余計な項目はだめ", async () => {
   await assertFails(setDoc(doc(anon(), "polls/zzzzzzzzzzzzzzzzzzzz"), pollData("u1")));
   await assertFails(setDoc(doc(as("u1"), "polls/zzzzzzzzzzzzzzzzzzzz"), pollData("u2")));
   await assertFails(setDoc(doc(as("u1"), "polls/short"), pollData("u1")));

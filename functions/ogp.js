@@ -17,10 +17,7 @@ const ogImage = e => `https://komadori.web.app/og/${emojiCode(e)}.png`;
 /** 調整から共有の表示を作る（テストしやすいように分ける） */
 function ogpFor(poll) {
   const title = poll.title;   // アイコンは画像（og:image）で出るので、題名には入れない
-  const d = poll.decided;
-  const desc = d
-    ? `決定：${day(d.date)} ${d.start.replace(/^0/, "")}〜${d.end.replace(/^0/, "")}${d.place ? ` @${d.place}` : ""}`
-    : `${day(poll.from)}〜${day(poll.to)}の日程調整`;   // 場所を取らないよう短く
+  const desc = `${day(poll.from)}〜${day(poll.to)}の日程調整`;   // 場所を取らないよう短く
   return { title, desc, image: emojiPng(poll.emoji), ogImage: ogImage(poll.emoji) };
 }
 function ogpHtml({ title, desc, ogImage }, url) {

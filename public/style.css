@@ -317,8 +317,6 @@ header.top a.brand img { opacity: .9; }
 .slots .hour > .slot.none + .slot.none { border-left: 1px dashed var(--line); }
 .heatrow .hour > .slot + .slot { box-shadow: inset 1px 0 0 var(--surface); }
 .heatrow .hour > .slot.free + .slot.free { box-shadow: inset 1px 0 0 var(--surface), inset 0 -4px 0 var(--ink); }
-.card.decided { border: 2px solid var(--ink); gap: 8px; margin-top: 12px; }
-.card.decided .dwhen { font-size: 24px; font-weight: 700; margin: 0; }
 /* フォームの中で値を1つ選ぶ：ラジオボタン（○の印つき・行全体が押せる）を横に並べる */
 .radios.row-radios { display: flex; flex-wrap: wrap; gap: 8px; }
 .radios.row-radios label { flex: 0 0 auto; min-width: 7em; }
