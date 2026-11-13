@@ -262,7 +262,12 @@ dialog::backdrop { background: rgb(0 0 0 / .45); }
 /* みんなの状況：条件 */
 .condsum { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; min-height: 36px; font-size: 14px; list-style: none; }
 .condsum::-webkit-details-marker { display: none; }
-.condsum .change { margin-left: auto; font-size: 13px; font-weight: 700; color: var(--link); }
+.condsum .change { margin-left: auto; font-size: 13px; font-weight: 700; color: var(--link); display: inline-flex; align-items: center; gap: 2px; }
+/* 開け閉めできることがわかるように、下向きの印（開いているときは上向き）と「変更」「閉じる」 */
+.condsum .chev { flex: none; transition: transform .15s; }
+details[open] > .condsum .chev { transform: rotate(180deg); }
+.condsum .if-open, details[open] > .condsum .if-closed { display: none; }
+details[open] > .condsum .if-open { display: inline; }
 .condgrid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin-top: 12px; }
 @media (min-width: 768px) { .condgrid { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
 .condgrid select { min-height: 40px; }
