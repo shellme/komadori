@@ -2,7 +2,7 @@ rules_version = '2';
 // コマドリのアクセスルール（テスト：npm run test:rules）
 // - ログインなし（端末ごとの匿名ログイン）。調整の ID（推測できない20文字）を知っている人は誰でも見て答えられる
 // - 一覧は取れない（ID を知らないと読めない）
-// - 調整そのものは作るだけ。変更・決定・削除は Cloud Functions（管理用の鍵を確かめる）から行う
+// - 調整そのものは作るだけ。変更・削除は Cloud Functions（管理用の鍵を確かめる）から行う。日程の決定は記録しない
 // - 作るときは、画面に出す値（期間・時刻・長さ）の形と大きさを確かめる（中身を HTML に入れても崩れないように）
 // - 答えには書いた端末（device = 匿名ログインの uid）を必ず入れる。履歴は足すだけ
 service cloud.firestore {
@@ -19,7 +19,7 @@ service cloud.firestore {
       allow create: if signedIn()
         && pollId.matches('^[a-z0-9]{20}$')
         && request.resource.data.keys().hasOnly(['title', 'emoji', 'note', 'from', 'to', 'dayStart', 'dayEnd', 'step',
-             'durations', 'holidays', 'dayType', 'exclude', 'invited', 'decided', 'adminKeyHash', 'createdAt', 'expireAt', 'device'])
+             'durations', 'holidays', 'dayType', 'exclude', 'invited', 'adminKeyHash', 'createdAt', 'expireAt', 'device'])
         && request.resource.data.keys().hasAll(['title', 'from', 'to', 'dayStart', 'dayEnd', 'step', 'durations', 'adminKeyHash', 'createdAt', 'expireAt', 'device'])
         && str(request.resource.data.title, 80) && request.resource.data.title.size() > 0
         && str(request.resource.data.get('note', ''), 1000)
@@ -36,7 +36,6 @@ service cloud.firestore {
         && request.resource.data.get('dayType', 'all') in ['all', 'weekend', 'weekday']
         && request.resource.data.get('exclude', []) is list && request.resource.data.get('exclude', []).size() <= 200
         && request.resource.data.get('invited', []) is list && request.resource.data.get('invited', []).size() <= 100
-        && request.resource.data.decided == null
         && str(request.resource.data.adminKeyHash, 64) && request.resource.data.adminKeyHash.size() == 64
         && request.resource.data.createdAt == request.time
         && request.resource.data.expireAt is timestamp

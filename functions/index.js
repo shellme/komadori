@@ -48,24 +48,9 @@ exports.setPlaces = onCall({ region: REGION }, async req => {
   return { ok: true, places: cleanPlaces.length, slots: cleanSlots.length };
 });
 
-// ---------- 決定・設定の編集・削除 ----------
+// ---------- 設定の編集・削除 ----------
 const toMin = s => { const m = /^(\d{1,2}):(\d{2})$/.exec(String(s ?? "")); return m ? +m[1] * 60 + +m[2] : null; };
-const minOf = v => typeof v === "number" ? v : toMin(v);
 const fmt = m => `${String(Math.floor(m / 60)).padStart(2, "0")}:${String(m % 60).padStart(2, "0")}`;
-
-/** 決める（decided が null なら取り消す）。決まった枠は答える画面の上に出る */
-exports.decide = onCall({ region: REGION }, async req => {
-  if (!req.auth) throw new HttpsError("unauthenticated", "ログインしていません");
-  const { pollId, key, decided } = req.data || {};
-  const { ref, poll } = await adminPoll(pollId, key);
-  if (decided === null) { await ref.update({ decided: null }); return { ok: true }; }
-  const s = minOf(decided?.start), e = minOf(decided?.end), step = poll.step === 60 ? 60 : 30;
-  if (!DATE.test(decided?.date || "") || decided.date < poll.from || decided.date > poll.to) throw new HttpsError("invalid-argument", "期間の中の日を選んでください");
-  if (s == null || e == null || e <= s || s % step || e % step || s < toMin(poll.dayStart) || e > toMin(poll.dayEnd)) throw new HttpsError("invalid-argument", "時間が正しくありません");
-  const place = str(decided.place, 80) ? decided.place : "";
-  await ref.update({ decided: { date: decided.date, start: fmt(s), end: fmt(e), place, at: FieldValue.serverTimestamp() } });
-  return { ok: true };
-});
 
 /** 設定を編集する（名前・アイコン・メモ・長さ・呼びたい人・対象の日・使わない日と時間帯・期間・1日の範囲・時間の刻み）。回答は消さない */
 exports.updatePoll = onCall({ region: REGION }, async req => {
@@ -185,7 +170,7 @@ exports.pollPage = onRequest({ region: REGION, memory: "256MiB", maxInstances: 5
       }
     } catch (e) { console.error(e); }
   }
-  // 決定・名前の変更がすぐ届くよう、キャッシュは短く
+  // 名前の変更がすぐ届くよう、キャッシュは短く
   res.set("Cache-Control", "public, max-age=60, s-maxage=60");
   res.set("X-Robots-Tag", "noindex, nofollow");
   res.set("Referrer-Policy", "no-referrer");

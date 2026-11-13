@@ -192,7 +192,7 @@ test("よい枠：人数が同じなら、空いている場所が多い枠を�
   assert.equal(L.fmtMin(L.bestWindows(p, fewer, 120, { avail })[0].start), "10:00");
 });
 
-test("決まった枠の文面", () => {
+test("候補の枠の文面", () => {
   assert.equal(L.slotLine({ date: "2026-12-05", start: 840, end: 960, title: "バンド練習" }), "2026-12-05 14:00-16:00 バンド練習");
   assert.equal(L.slotLine({ date: "2026-12-05", start: "13:00", end: "15:00", title: "練習", place: "スタジオA" }), "2026-12-05 13:00-15:00 練習 @スタジオA");
   assert.equal(L.fmtDuration(90), "1時間30分");
@@ -340,33 +340,6 @@ test("空いている場所：枠のあいだずっと空いている場所だ�
   assert.deepEqual([...L.freeSlotsOn(a, "2026-12-05")].sort((x, y) => x - y).slice(0, 2), [780, 810]);
   assert.deepEqual(L.filterPlaces(a, { group: "代々木" }).places.map(p => p.id), ["B"]);
   assert.deepEqual(L.filterPlaces(a, { q: "ドラム" }).places.map(p => p.id), ["A"]);
-});
-
-test("カレンダー：Google カレンダーのリンク（日本時間・場所・日またぎ）", () => {
-  const u = new URL(L.googleCalendarUrl({ title: "練習", date: "2026-12-05", start: 840, end: 960, place: "スタジオA" }));
-  assert.equal(u.searchParams.get("dates"), "20261205T140000/20261205T160000");
-  assert.equal(u.searchParams.get("ctz"), "Asia/Tokyo");
-  assert.equal(u.searchParams.get("location"), "スタジオA");
-  const late = new URL(L.googleCalendarUrl({ title: "深夜", date: "2026-12-31", start: "23:00", end: "26:00" }));
-  assert.equal(late.searchParams.get("dates"), "20261231T230000/20270101T020000");
-});
-
-test("カレンダー：.ics（文字の逃がし・UID）", () => {
-  const t = L.icsText({ title: "練習, 本番前", date: "2026-12-05", start: 840, end: 960, place: "A;B", uid: "abc" });
-  assert.match(t, /DTSTART;TZID=Asia\/Tokyo:20261205T140000\r\n/);
-  assert.match(t, /DTEND;TZID=Asia\/Tokyo:20261205T160000/);
-  assert.match(t, /SUMMARY:練習\\, 本番前/);
-  assert.match(t, /LOCATION:A\;B/);
-  assert.match(t, /UID:abc@komadori.web.app/);
-  assert.match(t, /BEGIN:VTIMEZONE\r\nTZID:Asia\/Tokyo/);
-});
-
-test("決まった枠の確かめ", () => {
-  const p = poll();
-  assert.equal(L.validateDecided(p, { date: "2026-12-05", start: 840, end: 960 }), "");
-  assert.ok(L.validateDecided(p, { date: "2027-01-05", start: 840, end: 960 }));
-  assert.ok(L.validateDecided(p, { date: "2026-12-05", start: 845, end: 960 }));
-  assert.ok(L.validateDecided(p, { date: "2026-12-05", start: 1320, end: 1440 }));   // 23:00 より後
 });
 
 test("回答の進み具合：参加不可も回答に数え、使わない日は数えない", () => {

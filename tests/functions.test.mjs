@@ -25,7 +25,7 @@ before(async () => {
   const { user } = await signInAnonymously(auth);
   await setDoc(doc(db, "polls", id), {
     title: "テスト", from: "2026-12-01", to: "2026-12-31", dayStart: "09:00", dayEnd: "23:00", step: 30, durations: [120],
-    exclude: [], invited: [], decided: null, adminKeyHash: createHash("sha256").update(KEY).digest("hex"),
+    exclude: [], invited: [], adminKeyHash: createHash("sha256").update(KEY).digest("hex"),
     createdAt: serverTimestamp(), expireAt: Timestamp.fromDate(new Date("2027-03-31")), device: user.uid,
   });
 });
@@ -52,17 +52,6 @@ test("setPlaces：null で消す", async () => {
 });
 
 const call = name => httpsCallable(fns, name);
-
-test("decide：鍵が正しければ決める・取り消す。範囲の外は断る", async () => {
-  await call("decide")({ pollId: id, key: KEY, decided: { date: "2026-12-05", start: 840, end: 960, place: "スタジオA" } });
-  const d = (await getDoc(doc(db, "polls", id))).get("decided");
-  assert.deepEqual({ date: d.date, start: d.start, end: d.end, place: d.place }, { date: "2026-12-05", start: "14:00", end: "16:00", place: "スタジオA" });
-  await assert.rejects(call("decide")({ pollId: id, key: "wrong", decided: { date: "2026-12-05", start: 840, end: 960 } }), e => e.code === "functions/permission-denied");
-  await assert.rejects(call("decide")({ pollId: id, key: KEY, decided: { date: "2027-01-05", start: 840, end: 960 } }), e => e.code === "functions/invalid-argument");
-  await assert.rejects(call("decide")({ pollId: id, key: KEY, decided: { date: "2026-12-05", start: 845, end: 960 } }), e => e.code === "functions/invalid-argument");
-  await call("decide")({ pollId: id, key: KEY, decided: null });
-  assert.equal((await getDoc(doc(db, "polls", id))).get("decided"), null);
-});
 
 test("updatePoll：名前・呼びたい人・使わない日を変える。期間の片方だけは断る", async () => {
   await call("updatePoll")({ pollId: id, key: KEY, patch: { title: "新しい名前", invited: [{ name: "アキ", required: true }], exclude: [{ kind: "date", date: "2026-12-24" }] } });
@@ -112,7 +101,7 @@ test("期限切れの削除：expireAt を過ぎた調整を回答ごと消す",
   const { user } = { user: auth.currentUser };
   await setDoc(doc(db, "polls", old), {
     title: "古い", from: "2026-01-01", to: "2026-01-31", dayStart: "09:00", dayEnd: "23:00", step: 30, durations: [120],
-    exclude: [], invited: [], decided: null, adminKeyHash: "a".repeat(64),
+    exclude: [], invited: [], adminKeyHash: "a".repeat(64),
     createdAt: serverTimestamp(), expireAt: Timestamp.fromDate(new Date("2026-05-01")), device: user.uid,
   });
   await setDoc(doc(db, "polls", old, "people", "p1"), { name: "アキ", days: {}, updatedAt: serverTimestamp(), device: user.uid });
@@ -133,7 +122,7 @@ test("pollPage：名前は HTML に入れても崩れない（< や $& があっ
   const pid = Array.from({ length: 20 }, () => "abcdefghijkmnpqrstuvwxyz23456789"[Math.random() * 32 | 0]).join("");
   await setDoc(doc(db, "polls", pid), {
     title: `<b>練習</b> $& $' 100%`, from: "2026-12-01", to: "2026-12-31", dayStart: "09:00", dayEnd: "23:00", step: 30, durations: [120],
-    exclude: [], invited: [], decided: null, adminKeyHash: "a".repeat(64),
+    exclude: [], invited: [], adminKeyHash: "a".repeat(64),
     createdAt: serverTimestamp(), expireAt: Timestamp.fromDate(new Date("2027-03-31")), device: auth.currentUser.uid,
   });
   const html = await (await fetch(`http://127.0.0.1:5011/demo-komadori/asia-northeast1/pollPage/p/${pid}`)).text();

@@ -335,7 +335,7 @@ export function bestWindows(poll, people, duration, { limit = 20, required = [],
 }
 
 // ---------- 書き出し ----------
-/** 決まった枠の文面：「2026-12-05 13:00-15:00 バンド練習 @スタジオA」 */
+/** 候補の枠の文面：「2026-12-05 13:00-15:00 バンド練習 @スタジオA」（LINE などに貼る） */
 export function slotLine({ date, start, end, title, place }) {
   const t = typeof start === "number" ? `${fmtMin(start)}-${fmtMin(end)}` : `${start}-${end}`;
   return [date, t, title, place ? `@${place}` : ""].filter(Boolean).join(" ");
@@ -515,44 +515,6 @@ export function filterPlaces(avail, { group = "", q = "" } = {}) {
   const keep = new Set((avail.places || []).filter(p => (!group || p.group === group)
     && words.every(w => `${p.name} ${p.note} ${p.group}`.toLowerCase().includes(w))).map(p => p.id));
   return { ...avail, places: avail.places.filter(p => keep.has(p.id)), slots: avail.slots.filter(s => keep.has(s.place)) };
-}
-
-// ---------- カレンダー ----------
-/** 日付と分（26:00 のような日またぎも）-> { date, hh, mm } */
-function at(iso, min) { return { date: addDays(iso, Math.floor(min / 1440)), m: ((min % 1440) + 1440) % 1440 }; }
-const stamp = (iso, min) => { const t = at(iso, min); return `${t.date.replace(/-/g, "")}T${pad(Math.floor(t.m / 60))}${pad(t.m % 60)}00`; };
-const minOf = v => typeof v === "number" ? v : toMin(v);
-
-/** Google カレンダーに追加するリンク（日本時間） */
-export function googleCalendarUrl({ title, date, start, end, place = "", details = "" }) {
-  const q = new URLSearchParams({ action: "TEMPLATE", text: title, dates: `${stamp(date, minOf(start))}/${stamp(date, minOf(end))}`, ctz: "Asia/Tokyo" });
-  if (place) q.set("location", place);
-  if (details) q.set("details", details);
-  return `https://calendar.google.com/calendar/render?${q}`;
-}
-
-/** .ics の中身（iPhone・Outlook）。uid は調整ごとに同じにして、入れ直しても重ならないようにする */
-export function icsText({ title, date, start, end, place = "", details = "", uid = "komadori" }) {
-  const e = s => String(s).replace(/\\/g, "\\\\").replace(/;/g, "\;").replace(/,/g, "\\,").replace(/\r?\n/g, "\\n");
-  return [
-    "BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//komadori//JP", "CALSCALE:GREGORIAN",
-    // 日本時間（夏時間なし）。Outlook などは TZID の定義がないと時刻がずれるので入れる
-    "BEGIN:VTIMEZONE", "TZID:Asia/Tokyo", "BEGIN:STANDARD", "DTSTART:19700101T000000", "TZOFFSETFROM:+0900", "TZOFFSETTO:+0900", "TZNAME:JST", "END:STANDARD", "END:VTIMEZONE",
-    "BEGIN:VEVENT", `UID:${uid}@komadori.web.app`, `DTSTAMP:${new Date().toISOString().replace(/[-:]/g, "").replace(/\.\d+/, "")}`,
-    `DTSTART;TZID=Asia/Tokyo:${stamp(date, minOf(start))}`, `DTEND;TZID=Asia/Tokyo:${stamp(date, minOf(end))}`,
-    `SUMMARY:${e(title)}`, ...(place ? [`LOCATION:${e(place)}`] : []), ...(details ? [`DESCRIPTION:${e(details)}`] : []),
-    "END:VEVENT", "END:VCALENDAR", "",
-  ].join("\r\n");
-}
-
-/** 決まった枠を確かめる（期間・1日の範囲・刻み）。問題があれば理由 */
-export function validateDecided(poll, d) {
-  if (!d) return "";
-  const s = minOf(d.start), e = minOf(d.end), st = stepOf(poll);
-  if (!isIso(d.date) || d.date < poll.from || d.date > poll.to) return "期間の中の日を選んでください";
-  if (s == null || e == null || e <= s || s % st || e % st) return "時間が正しくありません";
-  if (s < toMin(poll.dayStart) || e > toMin(poll.dayEnd)) return "1日の範囲の中で選んでください";
-  return "";
 }
 
 // ---------- 回答の進み具合 ----------

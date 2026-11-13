@@ -107,7 +107,6 @@ $("#create").addEventListener("submit", async e => {
     await setDoc(doc(db, "polls", id), {
       ...p,
       holidays: JP_HOLIDAYS.filter(d => d >= p.from && d <= p.to),
-      decided: null,
       adminKeyHash: await sha256(key),
       createdAt: serverTimestamp(),
       expireAt: Timestamp.fromDate(new Date(L.addDays(p.to, 90) + "T00:00:00")),   // 期間の終わりから90日で消す（段階4）
