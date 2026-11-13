@@ -621,6 +621,7 @@ function renderPlan() {
   const missing = w => people.filter(p => L.answeredOn(p.days, w.date)).map(p => p.name).filter(n => !w.sure.includes(n) && !w.maybe.includes(n));
   const notYetOn = iso => [...people.filter(p => !L.answeredOn(p.days, iso)).map(p => p.name), ...ast.pending];
   $("#planNote").innerHTML = notYet.length ? `<p class="warn">必須の人のうち ${esc(notYet.join("、"))} がまだ回答していないので、その人は数えずに候補を出しています</p>` : "";
+  // 候補の操作（この枠に決める・文面をコピー）は、管理用の URL で開いたときだけ出す（回答する人には要らない）
   $("#plan").innerHTML = list.map(({ iso, wins }) => {
     const ngs = people.filter(p => p.days?.[iso]?.ng).map(p => p.name);
     // その日にまだ何も入れていない人（呼びたい人の一覧で、まだ1日も回答していない人も入れる）
@@ -650,10 +651,10 @@ function renderPlan() {
         ${namesLine(`<b style="color:var(--maybe)">△</b> 調整が必要`, w.maybe, "font-size:13px")}
         ${namesLine("この時間は参加できない", missing(w), "", "sub")}
         ${namesLine("まだ回答していない", notYetOn(w.date), "", "sub")}
-        <div class="actions">
-          ${adminKeyOk ? `<button type="button" class="btn sm${!isDecided(iso, w) && i === 0 ? " primary" : ""}" data-decide="${iso}|${w.start}|${w.end}|${esc(av ? (L.freePlaces(av, iso, w.start, w.end)[0]?.name || "") : "")}" ${isDecided(iso, w) ? "disabled" : ""}>${isDecided(iso, w) ? "✅ 決定した枠" : "この枠に決める"}</button>` : ""}
+        ${adminKeyOk ? `<div class="actions">
+          <button type="button" class="btn sm${!isDecided(iso, w) && i === 0 ? " primary" : ""}" data-decide="${iso}|${w.start}|${w.end}|${esc(av ? (L.freePlaces(av, iso, w.start, w.end)[0]?.name || "") : "")}" ${isDecided(iso, w) ? "disabled" : ""}>${isDecided(iso, w) ? "✅ 決定した枠" : "この枠に決める"}</button>
           <button type="button" class="btn sm" data-copyslot="${iso}|${w.start}|${w.end}|${esc(av ? (L.freePlaces(av, iso, w.start, w.end)[0]?.name || "") : "")}">文面をコピー</button>
-        </div>
+        </div>` : ""}
       </div>`).join("") : total ? `<p class="sub">候補になる時間帯がありません</p>` : ""}</div>
       ${av ? placesOfDay(av, iso) : ""}
     </div>`;
