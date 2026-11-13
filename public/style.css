@@ -301,7 +301,8 @@ header.top a.brand img { opacity: .9; }
 .hour > .slot:nth-child(2):last-child { border-radius: 8px; }
 .slot.gap { visibility: hidden; }
 .slots .slot.sure::before, .slots .slot.maybe::before { content: none; }
-.heatrow > .hour > .slot { display: grid; place-items: center; min-height: 36px; padding: 0; border: 0; line-height: 1; cursor: pointer; }
+/* 数と「+調整」を縦に並べる。下の 4px は場所が空いている印（.free の下線）の分としていつも空けておく */
+.heatrow > .hour > .slot { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; min-height: 42px; padding: 3px 0 7px; border: 0; line-height: 1; cursor: pointer; }
 .heatrow > .hour > .slot b { font-family: var(--f-num); font-size: 14px; }
 .heatrow > .hour > .slot .plus { font-size: 9px; font-weight: 800; }
 .heatrow > .hour > .slot.h0 { color: var(--muted); }
