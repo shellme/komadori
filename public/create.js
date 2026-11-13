@@ -132,7 +132,8 @@ $("#create").addEventListener("submit", async e => {
 
 let shareText = "";
 $("#copyShare").addEventListener("click", () => copy(shareText, "文面をコピーしました"));
-$("#share").addEventListener("click", () => navigator.share?.({ text: shareText }).catch(() => {}));
+// 「送る」は URL だけ（送り先のアプリが共有の表示を出す）。説明つきで送りたいときは「文面をコピー」
+$("#share").addEventListener("click", () => navigator.share?.({ url: $("#answerUrl").value }).catch(() => {}));
 
 document.addEventListener("click", e => {
   const b = e.target.closest("[data-copy]");
