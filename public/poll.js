@@ -492,6 +492,7 @@ $("#tplRows").addEventListener("click", e => {
     const a = nearOf(b0, tplStarts()), b = nearOf(b0 + 60, tplEnds());
     row.querySelector(".segs").insertAdjacentHTML("beforeend", segHtml(row.dataset.l, "maybe", a, b, false));
   } else if (drop) drop.closest(".tseg").replaceWith();
+  if (add || drop) renderTplSummary();
 });
 // 入れる日：今日から先の使える日（「〇月だけ」なら、その月）
 const tplDays = () => {
@@ -507,6 +508,7 @@ $("#tplOpen").addEventListener("click", () => {
   document.querySelector('input[name="tplScope"][value="month"]').disabled = !m;
   if (!m) document.querySelector('input[name="tplScope"][value="all"]').checked = true;
   disarm($("#tplClear"), "入力をまとめて消す", "#tplNote");
+  renderTplSummary();
   $("#tplDlg").showModal();
 });
 $("#tplCancel").addEventListener("click", () => $("#tplDlg").close());
@@ -521,23 +523,45 @@ $("#tplClear").addEventListener("click", e => {
   renderDays(); save(Object.keys(before));
   toastUndo(`${n}日分の入力を消しました`, () => restore(before));
 });
-$("#tplForm").addEventListener("submit", e => {
-  e.preventDefault();
+/** まとめて入力で、どの日に何を入れるか：{ fill: [{ iso, sure, maybe, ng }], kept: 回答済みなので入れない日数, overwrite: 上書きする日数 }
+ *  押す前の案内（renderTplSummary）と、押したとき（submit）で同じ計算を使う */
+function planTpl() {
   const over = $("#tplOver").checked;
   const rules = Object.fromEntries($$("#tplRows .tplrow").map(r => [r.dataset.w,
     [...r.querySelectorAll(".tseg:not([hidden])")].map(x => ({ st: x.querySelector(".tst").value, a: +x.querySelector(".ta").value, b: +x.querySelector(".tb").value }))]));
-  const before = {};
+  const fill = [];
+  let kept = 0, overwrite = 0;
   for (const iso of tplDays()) {
     const segs = rules[rowOf(iso)], head = segs?.[0];
-    if (!head || head.st === "skip" || (!over && answeredDay(me.days, iso))) continue;
+    if (!head || head.st === "skip") continue;
     const ex = L.excludedOn(poll, iso), sure = new Set(), maybe = new Set();
     if (head.st !== "ng") for (const g of segs) {   // あとの時間帯が前の時間帯に上書きする
       for (const m of slots()) if (m >= g.a && m < g.b && !ex.slots.has(m)) { sure.delete(m); maybe.delete(m); (g.st === "sure" ? sure : maybe).add(m); }
     }
     if (head.st !== "ng" && !sure.size && !maybe.size) continue;
+    if (answeredDay(me.days, iso)) { if (!over) { kept++; continue; } overwrite++; }
+    fill.push({ iso, sure, maybe, ng: head.st === "ng" });
+  }
+  return { fill, kept, overwrite };
+}
+// 押す前に、何日に入れて、回答済みの日をどうするかを1行で出す（上書きするときは注意の見た目に）
+function renderTplSummary() {
+  const { fill, kept, overwrite } = planTpl(), el = $("#tplSummary");
+  el.className = overwrite ? "warn danger" : "sub";
+  el.textContent = !fill.length
+    ? `入れる日はありません${kept ? `（回答済みの${kept}日はそのままです）` : ""}`
+    : overwrite
+      ? `${fill.length}日に入れます。うち回答済みの${overwrite}日は上書きします（入れた後に「取り消す」で戻せます）`
+      : `未回答の${fill.length}日に入れます${kept ? `。回答済みの${kept}日はそのままです` : ""}`;
+}
+$("#tplForm").addEventListener("change", renderTplSummary);
+$("#tplForm").addEventListener("submit", e => {
+  e.preventDefault();
+  const before = {};
+  for (const { iso, sure, maybe, ng } of planTpl().fill) {
     before[iso] = structuredClone(me.days[iso] || null);
     const st = dayState(iso);
-    st.sure = sure; st.maybe = maybe; st.ng = head.st === "ng";
+    st.sure = sure; st.maybe = maybe; st.ng = ng;
     setDayState(iso, st);
   }
   $("#tplDlg").close();
