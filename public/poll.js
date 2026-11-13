@@ -560,7 +560,7 @@ function renderPlan() {
   $("#peopleCount").textContent = people.length ? `(${people.length})` : "";
   const total = people.length, dur = +$("#dur").value || poll.durations[0], kind = $("#kind").value;
   const txt = id => $(id).selectedOptions[0]?.textContent || "";
-  $("#planCond").textContent = [txt("#dur"), kind === "all" ? "すべての日" : txt("#kind"), +$("#min").value > 1 ? `${$("#min").value}人以上` : "", needed.size ? `必須：${[...needed].slice(0, 3).join("、")}${needed.size > 3 ? ` ほか${needed.size - 3}人` : ""}` : "", txt("#sort")].filter(Boolean).join("・");
+  $("#planCond").textContent = [txt("#dur"), kind === "all" ? "すべての日" : txt("#kind"), +$("#min").value > 1 ? `${$("#min").value}人以上` : "", needed.size ? `必須：${[...needed].slice(0, 3).join("、")}${needed.size > 3 ? ` ほか${needed.size - 3}人` : ""}` : "", avail && pgroups.size ? `場所：${[...pgroups].join("・")}` : "", txt("#sort")].filter(Boolean).join("・");
   const ast = L.answerStatus(poll, people);
   // 回答の状況：全部の日に回答した人・まだ残りがある人（残りの日数）・まだ回答していない人（呼びたい人の一覧から）
   const prog = L.progress(poll, people);
@@ -576,10 +576,10 @@ function renderPlan() {
   const required = [...needed].filter(n => people.some(p => p.name === n)), min = +$("#min").value || 1;
   // 必須の人がまだ回答していないときは、候補を出さずに知らせる
   const notYet = [...needed].filter(n => !people.some(p => p.name === n));
-  const av = avail ? L.filterPlaces(avail, { group: $("#pgroup").value, q: $("#pq").value }) : null;
+  const av = avail ? L.filterPlaces(avail, { groups: [...pgroups], q: $("#pq").value }) : null;
   $("#legendFree").hidden = !av;
   $("#placesAsOfNote").hidden = !avail;
-  if (avail) $("#placesAsOfNote").textContent = `📍 場所の空き状況${avail.asOf ? `：${avail.asOf}時点` : ""}。予約の前に、必ずそれぞれの場所で空きを確かめてください`;
+  if (avail) $("#placesAsOfNote").textContent = `📍 場所の空き状況${avail.asOf ? `：${L.fmtAsOf(avail.asOf)}時点` : ""}。予約の前に、必ずそれぞれの場所で空きを確かめてください`;
   const g = L.grid(poll, people), all = L.bestWindows(poll, people, dur, { limit: Infinity, required, min, avail: av });   // 人数が同じなら、空いている場所が多い枠を先に
   const lvl = c => total ? Math.min(4, Math.ceil((c / total) * 4)) : 0;
   const list = Object.keys(g).filter(iso => kind === "all" || kindOf(iso) === kind).map(iso => {
@@ -616,14 +616,12 @@ function renderPlan() {
       <div style="display:grid;gap:8px">${wins.length ? wins.map((w, i) => `<div class="cand ${i === 0 ? "top" : ""}">
         <div class="dhead">${i === 0 ? `<span class="star">★ 候補</span>` : ""}<span class="t">${hm(w.start)}〜${hm(w.end)}</span>
           <span style="font-size:14px"><b>${w.sure.length}/${everyone}人</b>${w.maybe.length ? `<span class="sub">（調整で+${w.maybe.length}人）</span>` : ""}</span></div>
-        ${av ? (() => { const fp = L.freePlaces(av, iso, w.start, w.end); return fp.length
-          ? `<p style="font-size:14px">📍 ${fp.slice(0, 3).map(placeLink).join("・")}${fp.length > 3 ? `<span class="sub"> ほか${fp.length - 3}か所</span>` : ""}</p>`
-          : `<span class="pill todo" style="width:fit-content">空いている場所なし</span>`; })() : ""}
+        ${av ? candPlaces(av, iso, w) : ""}
         ${namesLine(`<b style="color:var(--maybe)">△</b> 調整が必要`, w.maybe, "font-size:13px")}
         ${namesLine("この時間は参加できない", missing(w), "", "sub")}
         ${namesLine("まだ回答していない", notYetOn(w.date), "", "sub")}
         ${adminKeyOk ? `<div class="actions">
-          <button type="button" class="btn sm" data-copyslot="${iso}|${w.start}|${w.end}|${esc(av ? (L.freePlaces(av, iso, w.start, w.end)[0]?.name || "") : "")}">文面をコピー</button>
+          <button type="button" class="btn sm" data-copyslot="${iso}|${w.start}|${w.end}|${esc(av ? (fitPlaces(av, iso, w)[0]?.name || "") : "")}">文面をコピー</button>
         </div>` : ""}
       </div>`).join("") : total ? `<p class="sub">候補になる時間帯がありません</p>` : ""}</div>
       ${av ? placesOfDay(av, iso) : ""}
@@ -632,6 +630,17 @@ function renderPlan() {
   if (!total) $("#plan").insertAdjacentHTML("afterbegin", noAnswer);
   drawEmoji($("#plan"));
 }
+// 候補の枠に空いている場所：人数に合う場所 → 人数の決まりがない場所の順。人数が合わない場所は数だけ出す
+// 人数は、その枠に来られる人（参加できる＋調整が必要）
+const fitPlaces = (av, iso, w) => { const g = L.placesForWindow(av, iso, w.start, w.end, w.sure.length + w.maybe.length); return [...g.fit, ...g.unknown]; };
+function candPlaces(av, iso, w) {
+  const n = w.sure.length + w.maybe.length, g = L.placesForWindow(av, iso, w.start, w.end, n), list = [...g.fit, ...g.unknown];
+  const off = g.off.length ? `<span class="sub"> 人数（${n}人）が合わない場所 ${g.off.length}か所</span>` : "";
+  if (list.length) return `<p style="font-size:14px">📍 ${list.slice(0, 3).map(p => placeLink(p) + capTag(p)).join("・")}${list.length > 3 ? `<span class="sub"> ほか${list.length - 3}か所</span>` : ""}${off}</p>`;
+  return `<span class="pill todo" style="width:fit-content">${g.off.length ? `${n}人に合う場所なし` : "空いている場所なし"}</span>${off ? `<p class="sub" style="margin:0">${off}</p>` : ""}`;
+}
+const capTag = p => p.capacity ? ` <span class="sub">${esc(L.capacityLabel(p.capacity))}</span>` : "";
+
 // その日に空いている場所の一覧（場所ごとの空き時間）。回答がなくても出す
 function placesOfDay(av, iso) {
   const step = STEP(), s0 = L.toMin(poll.dayStart), e0 = L.toMin(poll.dayEnd), ex = L.excludedOn(poll, iso).slots;
@@ -643,16 +652,26 @@ function placesOfDay(av, iso) {
   }).filter(r => r.ranges.length);
   if (!rows.length) return `<p class="sub">📍 この日に空いている場所はありません</p>`;
   return `<details class="placesday" ${people.length ? "" : "open"}><summary>📍 この日に空いている場所 ${rows.length}か所</summary><ul class="plain">${rows.map(({ p, ranges }) =>
-    `<li>${placeLink(p)} <span class="font-num">${ranges.map(([a, b]) => `${hm(a)}〜${hm(b)}`).join("・")}</span>${p.note && !p.name.includes(p.note) ? ` <span class="sub">${esc(p.note)}</span>` : ""}${p.group ? ` <span class="tag">${esc(p.group)}</span>` : ""}</li>`).join("")}</ul></details>`;
+    `<li>${placeLink(p)} <span class="font-num">${ranges.map(([a, b]) => `${hm(a)}〜${hm(b)}`).join("・")}</span>${capTag(p)}${p.note && !p.name.includes(p.note) ? ` <span class="sub">${esc(p.note)}</span>` : ""}${p.group ? ` <span class="tag">${esc(p.group)}</span>` : ""}</li>`).join("")}</ul></details>`;
 }
-for (const id of ["#dur", "#kind", "#sort", "#min", "#pgroup"]) $(id).addEventListener("change", renderPlan);
+for (const id of ["#dur", "#kind", "#sort", "#min"]) $(id).addEventListener("change", renderPlan);
 $("#pq").addEventListener("input", renderPlan);
+// 場所のグループ：押して選ぶ（いくつでも）。この端末にこの日程調整ごとに覚える
+const pgKey = `komadori:pgroups:${pollId}`;
+let pgroups = new Set(store.get(pgKey, []));
 function renderPlaceFilters() {
   $("#placeFilters").hidden = !avail;
-  const groups = [...new Set((avail?.places || []).map(p => p.group).filter(Boolean))], cur = $("#pgroup").value;
-  $("#pgroup").innerHTML = `<option value="">すべて</option>` + groups.map(g => `<option ${g === cur ? "selected" : ""}>${esc(g)}</option>`).join("");
-  $("#pgroup").closest("label").hidden = !groups.length;
+  const groups = [...new Set((avail?.places || []).map(p => p.group).filter(Boolean))];
+  pgroups = new Set([...pgroups].filter(g => groups.includes(g)));   // 貼り直してなくなったグループは外す
+  $("#pgroups").innerHTML = groups.map(g => `<button type="button" class="tchip" data-pg="${esc(g)}" aria-pressed="${pgroups.has(g)}">${esc(g)}</button>`).join("");
+  $("#pgroupBox").hidden = groups.length <= 1;
 }
+$("#pgroups").addEventListener("click", e => {
+  const b = e.target.closest("[data-pg]"); if (!b) return;
+  const g = b.dataset.pg; pgroups.has(g) ? pgroups.delete(g) : pgroups.add(g);
+  store.set(pgKey, [...pgroups]);
+  renderPlaceFilters(); renderPlan();
+});
 
 // ---------- 管理：設定を編集・削除 ----------
 $("#openEdit").addEventListener("click", () => {
@@ -755,7 +774,7 @@ $("#pollDel").addEventListener("click", async e => {
 let parsed = null;
 function renderPlacesNow() {
   $("#placesNow").textContent = avail ? `${avail.places.length}か所` : "なし";
-  $("#placesNowDlg").textContent = avail ? `いま ${avail.places.length}か所を貼っています${avail.asOf ? `（${avail.asOf}時点）` : ""}。貼り直すと置きかわります` : "まだ貼っていません";
+  $("#placesNowDlg").textContent = avail ? `いま ${avail.places.length}か所を貼っています${avail.asOf ? `（${L.fmtAsOf(avail.asOf)}時点）` : ""}。貼り直すと置きかわります` : "まだ貼っていません";
   $("#placesDel").hidden = !avail;
 }
 const FORMAT = { lines: "1行に1つ", long: "表（縦長）", wide: "表（日付×場所）", json: "JSON" };
@@ -765,7 +784,7 @@ function readPlaces() {
   $("#placesSave").disabled = !parsed || !parsed.places.length;
   if (!parsed) { $("#placesPreview").textContent = ""; $("#placesErrors").innerHTML = ""; return; }
   const days = new Set(parsed.slots.filter(s => s.free.length).map(s => s.date)).size;
-  $("#placesPreview").innerHTML = `読み取り：<b>${FORMAT[parsed.format]}</b>・場所 ${parsed.places.length}か所・空きのある日 ${days}日${parsed.asOf ? `・${esc(parsed.asOf)}時点` : ""}`
+  $("#placesPreview").innerHTML = `読み取り：<b>${FORMAT[parsed.format]}</b>・場所 ${parsed.places.length}か所・空きのある日 ${days}日${parsed.asOf ? `・${esc(L.fmtAsOf(parsed.asOf))}時点` : ""}`
     + (parsed.places.length ? `<br>${parsed.places.slice(0, 6).map(p => esc(p.name)).join("、")}${parsed.places.length > 6 ? ` ほか${parsed.places.length - 6}か所` : ""}` : "");
   $("#placesErrors").innerHTML = parsed.errors.slice(0, 10).map(e => `<div>${e.line}行目「${esc(String(e.text).slice(0, 30))}」：${esc(e.reason)}（飛ばしました）</div>`).join("")
     + (parsed.errors.length > 10 ? `<div>ほか${parsed.errors.length - 10}行</div>` : "");

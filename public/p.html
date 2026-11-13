@@ -97,8 +97,8 @@
           <label class="field"><span class="label">日の並べ方</span><select id="sort"><option value="score">そろう人が多い日から</option><option value="date">日付の順</option></select></label>
         </div>
         <div class="condgrid" id="placeFilters" hidden>
-          <label class="field"><span class="label">場所のグループ</span><select id="pgroup"><option value="">すべて</option></select></label>
-          <label class="field" style="grid-column:span 2"><span class="label">場所の名前・メモで探す</span><input type="text" id="pq" placeholder="例：32帖 ドラム"></label>
+          <div class="field" id="pgroupBox" style="grid-column:1/-1"><span class="label">場所のグループ <span class="sub">押して選ぶ（いくつでも。選ばなければすべて）</span></span><div class="chips" id="pgroups"></div></div>
+          <label class="field" style="grid-column:1/-1"><span class="label">場所の名前・メモで探す</span><input type="text" id="pq" placeholder="例：32帖 ドラム"></label>
         </div>
         <div class="field" style="margin-top:12px"><span class="label">必須の人 <span class="sub">来られない枠は出しません。押して切り替え</span></span><div class="chips" id="reqChips"></div></div>
       </details>

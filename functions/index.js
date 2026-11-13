@@ -38,7 +38,13 @@ exports.setPlaces = onCall({ region: REGION }, async req => {
     if (!str(p?.id, 80) || !p.id || !str(p.name, 80) || !p.name || ids.has(p.id)) throw new HttpsError("invalid-argument", "場所の形がちがいます");
     ids.add(p.id);
     const url = str(p.url, 500) && /^https?:\/\//.test(p.url) ? p.url : "";
-    return { id: p.id, name: p.name, group: str(p.group, 200) ? p.group : "", note: str(p.note, 200) ? p.note : "", url };
+    // 人数（適正人数）：1〜999 の整数で min ≦ max のときだけ残す。形がちがえば人数なしにする（場所そのものは残す）
+    const n = v => Number.isInteger(v) && v >= 1 && v <= 999;
+    const c = p.capacity && typeof p.capacity === "object" ? p.capacity : null;
+    const capacity = c && (c.min === undefined || n(c.min)) && (c.max === undefined || n(c.max)) && (c.min !== undefined || c.max !== undefined)
+      && !(c.min !== undefined && c.max !== undefined && c.min > c.max)
+      ? { ...(c.min !== undefined ? { min: c.min } : {}), ...(c.max !== undefined ? { max: c.max } : {}) } : null;
+    return { id: p.id, name: p.name, group: str(p.group, 200) ? p.group : "", note: str(p.note, 200) ? p.note : "", url, ...(capacity ? { capacity } : {}) };
   });
   const cleanSlots = slots.map(s => {
     if (!ids.has(s?.place) || !DATE.test(s.date || "") || !Array.isArray(s.free) || s.free.length > 48 || !s.free.every(f => RANGE.test(f))) throw new HttpsError("invalid-argument", "空きの行の形がちがいます");

@@ -37,6 +37,20 @@ test("setPlaces：鍵が正しければ保存する（期間の外の行は落�
   assert.deepEqual(snap.get("slots"), [{ place: "A", date: "2026-12-05", free: ["13:00-18:00"] }]);
 });
 
+test("setPlaces：人数（capacity）は正しい形だけ残す。おかしければ人数なしにする（場所は残す）", async () => {
+  const places = [
+    { id: "A", name: "A", group: "", note: "", url: "", capacity: { min: 5, max: 8 } },
+    { id: "B", name: "B", group: "", note: "", url: "", capacity: { max: 6 } },
+    { id: "C", name: "C", group: "", note: "", url: "", capacity: { min: 9, max: 3 } },
+    { id: "D", name: "D", group: "", note: "", url: "", capacity: { min: "5" } },
+    { id: "E", name: "E", group: "", note: "", url: "" },
+  ];
+  await setPlaces({ pollId: id, key: KEY, avail: { asOf: "", places, slots: [] } });
+  const got = (await getDoc(doc(db, "polls", id, "places", "current"))).get("places");
+  assert.deepEqual(got.map(p => p.capacity ?? null), [{ min: 5, max: 8 }, { max: 6 }, null, null, null]);
+  await setPlaces({ pollId: id, key: KEY, avail });   // 元に戻す（あとのテストのため）
+});
+
 test("setPlaces：鍵がちがえば断る", async () => {
   await assert.rejects(setPlaces({ pollId: id, key: "wrong", avail }), e => e.code === "functions/permission-denied");
 });
