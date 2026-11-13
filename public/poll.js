@@ -774,10 +774,23 @@ $("#openPlaces").addEventListener("click", () => {
   disarm($("#placesDel"), "貼った空き状況を消す", "#placesNote");
   $("#placesDlg").showModal(); growAll($("#placesDlg"));
 });
-$("#placesFile").addEventListener("change", async e => {
-  const f = e.target.files[0]; if (!f) return;
-  $("#placesText").value = await f.text(); e.target.value = ""; grow($("#placesText")); readPlaces();
-});
+async function loadPlacesFile(f) {
+  if (!f) return;
+  $("#placesText").value = await f.text(); grow($("#placesText")); readPlaces();
+}
+$("#placesFile").addEventListener("change", e => loadPlacesFile(e.target.files[0]).catch(err => { console.error(err); toast("ファイルを読み込めませんでした"); }).finally(() => { e.target.value = ""; }));
+// ファイルをダイアログに落としても読み込む（ブラウザがファイルを開いてしまわないよう、ダイアログの中ではいつも止める）
+{
+  const dlg = $("#placesDlg"), box = $("#placesText");
+  const hasFile = e => [...(e.dataTransfer?.types || [])].includes("Files");
+  dlg.addEventListener("dragover", e => { if (!hasFile(e)) return; e.preventDefault(); e.dataTransfer.dropEffect = "copy"; box.classList.add("dropping"); });
+  dlg.addEventListener("dragleave", e => { if (!dlg.contains(e.relatedTarget)) box.classList.remove("dropping"); });
+  dlg.addEventListener("drop", e => {
+    if (!hasFile(e)) return;
+    e.preventDefault(); box.classList.remove("dropping");
+    loadPlacesFile(e.dataTransfer.files[0]).catch(err => { console.error(err); toast("ファイルを読み込めませんでした"); });
+  });
+}
 $("#placesSave").addEventListener("click", async () => {
   if (!parsed) return;
   $("#placesSave").disabled = true;
