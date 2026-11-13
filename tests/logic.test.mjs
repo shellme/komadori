@@ -43,12 +43,12 @@ test("日付：年のない日付は期間に入る年を選ぶ", () => {
   assert.equal(L.fmtDay("2026-12-23", ["2026-12-23"]), "12/23(水・祝)");
 });
 
-test("除外：日・曜日・毎日の時間帯・特定の日の時間帯", () => {
+test("除外：前の形（日・曜日・毎日の時間帯・特定の日の時間帯）も、前と同じに読む", () => {
   const p = poll({
-    holidays: ["2026-12-02"],
+    holidays: ["2026-12-02", "2026-12-03"],
     exclude: [
       { kind: "date", date: "2026-12-01" },
-      { kind: "weekday", weekdays: [4] },                                  // 木（12/3）
+      { kind: "weekday", weekdays: [4] },                                  // 木（12/3）。前の「木」は祝日でも当てはまる
       { kind: "time", start: "09:00", end: "18:00", weekdays: [1, 2, 3, 4, 5], holiday: false },
       { kind: "range", date: "2026-12-05", start: "18:00", end: "23:00", note: "別のライブ" },
     ],
@@ -66,43 +66,69 @@ test("除外：日・曜日・毎日の時間帯・特定の日の時間帯", ()
   assert.equal(sat.slots.has(1020), false);
   assert.deepEqual(sat.notes, ["別のライブ"]);
   assert.deepEqual(L.activeDates(p), ["2026-12-02", "2026-12-04", "2026-12-05", "2026-12-06", "2026-12-07"]);
+  assert.equal(L.exclusionLabel({ kind: "weekday", weekdays: [1, 3] }), "月・水");
+  assert.equal(L.exclusionLabel({ kind: "days", weekdays: [1, 2, 3, 4, 5], holiday: false }), "平日（祝日は除く）");
 });
 
-test("除外の貼り付け", () => {
-  const { items, errors } = L.parseExclusions("12/24\n\n月 水\n平日 9:00-18:00\n土日祝 22:00-23:00\n12/12 18:00-23:00 別のライブ\nなにか", { from: "2026-12-01", to: "2026-12-31" });
+test("除外の貼り付け：［いつ］［どの日］［何時］［ひとこと］", () => {
+  const P = { from: "2026-12-01", to: "2027-02-28" };
+  const { items, errors } = L.parseExclusions(
+    "12/24 クリスマス\n\n1/1-1/15\n1月 平日\n月 水\n月 水 祝\n平日 9:00-18:00\n土日祝 22:00-23:00\n12/12 18:00-23:00 別のライブ\n毎日 0:00-9:00\nなにか\n2/10-2/1", P);
   assert.deepEqual(items, [
-    { kind: "date", date: "2026-12-24" },
-    { kind: "weekday", weekdays: [1, 3] },
-    { kind: "time", start: "09:00", end: "18:00", weekdays: [1, 2, 3, 4, 5], holiday: false },
-    { kind: "time", start: "22:00", end: "23:00", weekdays: [0, 6], holiday: true },
-    { kind: "range", date: "2026-12-12", start: "18:00", end: "23:00", note: "別のライブ" },
+    { kind: "rule", from: "2026-12-24", to: "2026-12-24", note: "クリスマス" },
+    { kind: "rule", from: "2027-01-01", to: "2027-01-15" },
+    { kind: "rule", from: "2027-01-01", to: "2027-01-31", weekdays: [1, 2, 3, 4, 5], holiday: "skip" },
+    { kind: "rule", weekdays: [1, 3], holiday: "skip" },
+    { kind: "rule", weekdays: [1, 3], holiday: "add" },
+    { kind: "rule", start: "09:00", end: "18:00", weekdays: [1, 2, 3, 4, 5], holiday: "skip" },
+    { kind: "rule", start: "22:00", end: "23:00", weekdays: [0, 6], holiday: "add" },
+    { kind: "rule", start: "18:00", end: "23:00", from: "2026-12-12", to: "2026-12-12", note: "別のライブ" },
+    { kind: "rule", start: "00:00", end: "09:00" },
   ]);
-  assert.equal(errors.length, 1);
-  assert.equal(errors[0].line, 7);
-  assert.equal(L.exclusionLabel(items[2]), "平日 09:00-18:00");
-  assert.equal(L.exclusionLabel(items[1]), "毎週 月・水");
+  assert.deepEqual(errors.map(e => e.line), [11, 12]);
+  const H = ["2027-01-11"];
+  assert.deepEqual(items.map(x => L.exclusionLabel(x, H)), [
+    "12/24(木) クリスマス", "1/1(金)〜1/15(金)", "1月 平日（祝日は除く）", "月・水（祝日は除く）", "月・水・祝",
+    "平日（祝日は除く） 09:00-18:00", "土日祝 22:00-23:00", "12/12(土) 18:00-23:00 別のライブ", "毎日 00:00-09:00",
+  ]);
 });
 
-test("除外：「平日」だけの行は、祝日以外の平日を丸ごと使わない（土日祝だけで調整）", () => {
-  const { items, errors } = L.parseExclusions("平日\n土日 練習なし", { from: "2026-12-01", to: "2026-12-31" });
-  assert.deepEqual(errors, []);
-  assert.deepEqual(items, [
-    { kind: "days", weekdays: [1, 2, 3, 4, 5], holiday: false },
-    { kind: "days", weekdays: [0, 6], holiday: false, note: "練習なし" },
-  ]);
-  assert.equal(L.exclusionLabel(items[0]), "平日（祝日は除く）");
-  assert.equal(L.exclusionLabel(items[1]), "土日（祝日は除く） 練習なし");
-  // 12/1(火)〜12/7(月)、12/2(水) を祝日にする → 残るのは祝日と土日
-  const p = poll({ holidays: ["2026-12-02"], exclude: [items[0]] });
-  assert.deepEqual(L.activeDates(p), ["2026-12-02", "2026-12-05", "2026-12-06"]);
-  assert.equal(L.excludedOn(p, "2026-12-01").all, true);
+test("除外：曜日で書いたものは祝日にかからない。祝日も外すときは「祝」を足す", () => {
+  // 12/1(火)〜12/7(月)。12/7(月) を祝日にする
+  const p = over => poll({ holidays: ["2026-12-07"], ...over });
+  const read = text => L.parseExclusions(text, { from: "2026-12-01", to: "2026-12-07" }).items;
+  assert.deepEqual(L.activeDates(p({ exclude: read("月 火") })), ["2026-12-02", "2026-12-03", "2026-12-04", "2026-12-05", "2026-12-06", "2026-12-07"]);
+  assert.deepEqual(L.activeDates(p({ exclude: read("月 火 祝") })), ["2026-12-02", "2026-12-03", "2026-12-04", "2026-12-05", "2026-12-06"]);
+  assert.deepEqual(L.activeDates(p({ exclude: read("祝") })), ["2026-12-01", "2026-12-02", "2026-12-03", "2026-12-04", "2026-12-05", "2026-12-06"]);
+});
+
+test("除外：期間つき（1月は土日祝だけ、2月は全部）", () => {
+  const p = poll({ from: "2027-01-01", to: "2027-02-28", holidays: ["2027-01-01", "2027-01-11", "2027-02-11", "2027-02-23"] });
+  const exclude = L.parseExclusions("1月 平日", p).items;
+  const days = L.activeDates({ ...p, exclude });
+  const jan = days.filter(d => d < "2027-02-01"), feb = days.filter(d => d >= "2027-02-01");
+  assert.ok(jan.every(d => [0, 6].includes(L.weekdayOf(d)) || p.holidays.includes(d)));
+  assert.ok(jan.includes("2027-01-11"));          // 成人の日（月）は残る
+  assert.equal(feb.length, 28);                   // 2月は全部
+  // 年をまたぐ期間でも、月はその期間にかかる年を選ぶ
+  assert.deepEqual(L.parseExclusions("1月", { from: "2026-12-01", to: "2027-02-28" }).items[0], { kind: "rule", from: "2027-01-01", to: "2027-01-31" });
+});
+
+test("対象の日：土日祝だけ・平日だけ", () => {
+  const p = poll({ holidays: ["2026-12-02"] });   // 12/1(火)〜12/7(月)、12/2(水) が祝日
+  assert.deepEqual(L.activeDates({ ...p, dayType: "weekend" }), ["2026-12-02", "2026-12-05", "2026-12-06"]);
+  assert.deepEqual(L.activeDates({ ...p, dayType: "weekday" }), ["2026-12-01", "2026-12-03", "2026-12-04", "2026-12-07"]);
+  assert.equal(L.activeDates({ ...p, dayType: "all" }).length, 7);
 });
 
 test("除外の一覧を貼り付けの形に戻す（読み直すと同じになる）", () => {
-  const text = "12/24 クリスマス\n月 水\n平日\n平日 9:00-18:00\n土日祝 22:00-23:00\n12/12 18:00-23:00 別のライブ";
-  const { items } = L.parseExclusions(text, { from: "2026-12-01", to: "2026-12-31" });
-  const back = L.exclusionsText(items);
-  assert.deepEqual(L.parseExclusions(back, { from: "2026-12-01", to: "2026-12-31" }).items, items);
+  const P = { from: "2026-12-01", to: "2027-02-28" };
+  const text = "12/24 クリスマス\n1/1-1/15\n1月 平日\n月 水\n月 水 祝\n祝\n平日 9:00-18:00\n土日祝 22:00-23:00\n12/12 18:00-23:00 別のライブ\n毎日 0:00-9:00\n毎日";
+  const { items } = L.parseExclusions(text, P);
+  assert.equal(items.length, 11);
+  assert.deepEqual(L.parseExclusions(L.exclusionsText(items), P).items, items);
+  // 前の形も、今の書き方に直して出す
+  assert.equal(L.exclusionsText([{ kind: "date", date: "2026-12-24" }, { kind: "time", start: "09:00", end: "18:00", weekdays: [1, 2, 3, 4, 5], holiday: false }]), "12/24\n平日 09:00-18:00");
 });
 
 test("調整の設定の確かめ", () => {

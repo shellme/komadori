@@ -67,7 +67,7 @@ exports.decide = onCall({ region: REGION }, async req => {
   return { ok: true };
 });
 
-/** 設定を編集する（名前・アイコン・メモ・長さ・呼びたい人・使わない日と時間帯・期間・1日の範囲・時間の刻み）。回答は消さない */
+/** 設定を編集する（名前・アイコン・メモ・長さ・呼びたい人・対象の日・使わない日と時間帯・期間・1日の範囲・時間の刻み）。回答は消さない */
 exports.updatePoll = onCall({ region: REGION }, async req => {
   if (!req.auth) throw new HttpsError("unauthenticated", "ログインしていません");
   const { pollId, key } = req.data || {}, patch = req.data?.patch || {};
@@ -86,12 +86,18 @@ exports.updatePoll = onCall({ region: REGION }, async req => {
     if (!Array.isArray(v) || v.length > 100 || v.some(x => !str(x?.name, 40) || !x.name || typeof x.required !== "boolean")) throw new HttpsError("invalid-argument", "呼びたい人の形がちがいます");
     out.invited = v.map(x => ({ name: x.name, required: x.required }));
   }
+  if ("dayType" in patch) {
+    if (!["all", "weekend", "weekday"].includes(patch.dayType)) throw new HttpsError("invalid-argument", "対象の日が正しくありません");
+    out.dayType = patch.dayType;
+  }
   if ("exclude" in patch) {
     const v = patch.exclude;
-    const okItem = x => x && ["date", "weekday", "days", "time", "range"].includes(x.kind)
-      && (x.date === undefined || DATE.test(x.date)) && (x.start === undefined || toMin(x.start) != null) && (x.end === undefined || toMin(x.end) != null)
-      && (x.weekdays === undefined || (Array.isArray(x.weekdays) && x.weekdays.every(w => Number.isInteger(w) && w >= 0 && w <= 6)))
-      && (x.holiday === undefined || typeof x.holiday === "boolean")
+    // 新しく書くのは kind: rule だけ（logic.js の normRule）。前の形も、そのまま送り直されたときのために受け付ける
+    const okItem = x => x && ["rule", "date", "weekday", "days", "time", "range"].includes(x.kind)
+      && ["date", "from", "to"].every(k => x[k] === undefined || DATE.test(x[k])) && (x.from === undefined || x.to === undefined || x.from <= x.to)
+      && (x.start === undefined || toMin(x.start) != null) && (x.end === undefined || toMin(x.end) != null)
+      && (x.weekdays === undefined || (Array.isArray(x.weekdays) && x.weekdays.length <= 7 && x.weekdays.every(w => Number.isInteger(w) && w >= 0 && w <= 6)))
+      && (x.holiday === undefined || typeof x.holiday === "boolean" || ["skip", "add", "any"].includes(x.holiday))
       && (x.note === undefined || str(x.note, 100));
     if (!Array.isArray(v) || v.length > 200 || !v.every(okItem)) throw new HttpsError("invalid-argument", "使わない日・時間帯の形がちがいます");
     out.exclude = v;

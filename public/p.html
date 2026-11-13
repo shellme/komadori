@@ -135,6 +135,12 @@
       <label class="field"><span class="label">名前</span><input type="text" id="edTitle" maxlength="80"></label></div>
     <div class="field"><span class="label">期間 <span class="sub">3か月まで</span></span>
       <div class="row"><input type="date" id="edFrom" aria-label="期間のはじめ"><span class="tilde">〜</span><input type="date" id="edTo" aria-label="期間のおわり"></div></div>
+    <div class="field"><span class="label">対象の日</span>
+      <div class="radios row-radios" id="edDayType" role="radiogroup" aria-label="対象の日">
+        <label><input type="radio" name="edDayType" value="all">すべての日</label>
+        <label><input type="radio" name="edDayType" value="weekend">土日祝だけ</label>
+        <label><input type="radio" name="edDayType" value="weekday">平日だけ</label>
+      </div></div>
     <div class="field"><span class="label">時間の刻み</span>
       <div class="radios row-radios" id="edStep" role="radiogroup" aria-label="時間の刻み">
         <label><input type="radio" name="edStep" value="30">30分</label>

@@ -63,6 +63,8 @@ if (recent.length) {
   drawEmoji($("#recentList"));
 }
 
+const dayType = () => document.querySelector('input[name="dayType"]:checked')?.value || "all";
+
 // 除外の読み取りをその場で見せる
 function readExclude() {
   return L.parseExclusions($("#exclude").value, { from: $("#from").value, to: $("#to").value });
@@ -88,6 +90,7 @@ $("#create").addEventListener("submit", async e => {
     from: $("#from").value, to: $("#to").value,
     dayStart: $("#dayStart").value, dayEnd: $("#dayEnd").value, step: step(),
     durations: [...document.querySelectorAll("#durations input:checked")].map(i => +i.value),
+    ...(dayType() !== "all" ? { dayType: dayType() } : {}),
     exclude: items,
     invited: L.parseInvited($("#invited").value),
   };
