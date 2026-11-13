@@ -44,6 +44,14 @@ npm run emu         # エミュレーターで画面を確かめる → http://1
 ## 絵文字
 アイコンと絵文字は [Twemoji](https://github.com/jdecked/twemoji)（画像は CC-BY 4.0）で描いています。アプリのアイコン（public/icon.svg）は Twemoji の 🐦 です。
 
+## デプロイ
+```
+npm run deploy       # 画面だけ変えたとき（サイト＋日程調整のページを返す pollPage）
+npm run deploy:all   # ルール・Functions も変えたとき（全部）
+```
+- 日程調整のページ（`/p/…`）は、Cloud Functions の `pollPage` が返す。`pollPage` はデプロイしたときの `public/p.html` の写しを持つので、**サイトだけのデプロイでは `/p/…` は古いまま**になる。画面を変えたら `npm run deploy` を使う
+- Functions を消すとき（コードから関数を外したとき）は、確認を飛ばすため `npm run deploy:all -- --force`
+
 ## デプロイのときに要るもの
 - Firebase のコンソールで Firestore と匿名ログインを有効にする
 - Cloud Functions を使うので、プロジェクトを従量課金（Blaze）にする
