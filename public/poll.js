@@ -260,8 +260,9 @@ $("#filterClear").addEventListener("click", () => { view.month = "all"; view.wd 
 
 // ---------- 時間を回答 ----------
 function renderDays() {
-  const list = L.dateRange(poll.from, poll.to).filter(inMonth).filter(inWd)
-    .filter(iso => view.f === "all" || (!L.excludedOn(poll, iso).all && !answeredDay(me.days, iso)));
+  // 使わない日は出さない（場所を取るため。どの日かは上の「使わない日・時間帯」にまとめて出ている）
+  const list = L.activeDates(poll).filter(inMonth).filter(inWd)
+    .filter(iso => view.f === "all" || !answeredDay(me.days, iso));
   // しぼっている間は、何を見ているかを1行で出す
   const filtered = view.month !== "all" || view.wd.length || view.f === "todo";
   $("#filterNote").hidden = !filtered;
@@ -282,7 +283,6 @@ function renderDays() {
 }
 function dayHtml(iso) {
   const ex = L.excludedOn(poll, iso);
-  if (ex.all) return `<div class="card" data-off style="border-style:dashed;background:none">${dateHead(iso, `<span class="pill gray">使わない日</span>`)}${ex.notes.length ? `<p class="sub">${esc(ex.notes.join("、"))}</p>` : ""}</div>`;
   const st = dayState(iso), any = st.sure.size || st.maybe.size;
   const status = st.ng ? `<span class="pill ng">参加不可</span>` : any ? `<span class="pill done">回答済み</span>` : `<span class="pill todo">未回答</span>`;
   const cell = m => {
