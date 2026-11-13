@@ -586,11 +586,11 @@ function renderPlan() {
   $("#legendFree").hidden = !av;
   $("#placesAsOfNote").hidden = !avail;
   if (avail) $("#placesAsOfNote").textContent = `📍 場所の空き状況${avail.asOf ? `：${avail.asOf}時点` : ""}。予約の前に、必ずそれぞれの場所で空きを確かめてください`;
-  const g = L.grid(poll, people), all = L.bestWindows(poll, people, dur, { limit: Infinity, required, min });
+  const g = L.grid(poll, people), all = L.bestWindows(poll, people, dur, { limit: Infinity, required, min, avail: av });   // 人数が同じなら、空いている場所が多い枠を先に
   const lvl = c => total ? Math.min(4, Math.ceil((c / total) * 4)) : 0;
   const list = Object.keys(g).filter(iso => kind === "all" || kindOf(iso) === kind).map(iso => {
     const wins = all.filter(w => w.date === iso).slice(0, 3);
-    return { iso, wins, score: wins[0] ? wins[0].sure.length * 100 + wins[0].maybe.length : -1 };
+    return { iso, wins, score: wins[0] ? (wins[0].sure.length * 100 + wins[0].maybe.length) * 1000 + Math.min(wins[0].places, 999) : -1 };
   });
   if (total && $("#sort").value === "score") list.sort((a, b) => b.score - a.score || a.iso.localeCompare(b.iso));
   // 参加できない人：その日に回答していて、この時間が ● でも △ でもない人（その日にまだ回答していない人は分けて出す）

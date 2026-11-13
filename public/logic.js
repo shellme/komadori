@@ -305,7 +305,9 @@ export function grid(poll, people) {
  *  min：最後まで「参加できる」人がこの人数より少ない枠は出さない
  *  並べ方：最後まで「参加できる」人数 → 「調整が必要」も含めた人数 → 日付・時刻の早い順。
  *  同じ日で開始が近い（duration 未満の差）枠はよいほう1つにまとめる */
-export function bestWindows(poll, people, duration, { limit = 20, required = [], min = 1 } = {}) {
+// 並べ方：参加できる人が多い順 → 調整で来られる人も入れて多い順 → 空いている場所が多い順（avail があるとき）→ 早い日・早い時間
+// 場所は人数が同じ枠どうしの比べにだけ使う（人数より場所を優先はしない）。近い枠をまとめるのは、この並びで先のものを残す
+export function bestWindows(poll, people, duration, { limit = 20, required = [], min = 1, avail = null } = {}) {
   const g = grid(poll, people), slots = daySlots(poll), n = duration / stepOf(poll), res = [];
   for (const iso of Object.keys(g)) {
     if (!Number.isInteger(n)) break;   // 刻みで割り切れない長さは出さない
@@ -317,11 +319,12 @@ export function bestWindows(poll, people, duration, { limit = 20, required = [],
         [...span[0].sure, ...span[0].maybe]);
       if (!either.length || sure.length < min) continue;
       if (required.some(n => !either.includes(n))) continue;
-      res.push({ date: iso, start: slots[i], end: slots[i] + duration, sure, maybe: either.filter(x => !sure.includes(x)) });
+      const places = avail ? freePlaces(avail, iso, slots[i], slots[i] + duration).length : 0;
+      res.push({ date: iso, start: slots[i], end: slots[i] + duration, sure, maybe: either.filter(x => !sure.includes(x)), places });
     }
   }
   res.sort((a, b) => b.sure.length - a.sure.length || (b.sure.length + b.maybe.length) - (a.sure.length + a.maybe.length)
-    || a.date.localeCompare(b.date) || a.start - b.start);
+    || b.places - a.places || a.date.localeCompare(b.date) || a.start - b.start);
   const picked = [];
   for (const w of res) {
     if (picked.some(p => p.date === w.date && Math.abs(p.start - w.start) < duration)) continue;
