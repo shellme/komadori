@@ -305,7 +305,7 @@ export function grid(poll, people) {
  *  min：最後まで「参加できる」人がこの人数より少ない枠は出さない
  *  並べ方：最後まで「参加できる」人数 → 「調整が必要」も含めた人数 → 日付・時刻の早い順。
  *  同じ日で開始が近い（duration 未満の差）枠はよいほう1つにまとめる */
-// 並べ方：参加できる人が多い順 → 調整で来られる人も入れて多い順 → 空いている場所が多い順（avail があるとき）→ 早い日・早い時間
+// 並べ方：参加できる人が多い順 → 調整で来られる人も入れて多い順 → 人数に合う空いている場所が多い順（avail があるとき）→ 早い日・早い時間
 // 場所は人数が同じ枠どうしの比べにだけ使う（人数より場所を優先はしない）。近い枠をまとめるのは、この並びで先のものを残す
 export function bestWindows(poll, people, duration, { limit = 20, required = [], min = 1, avail = null } = {}) {
   const g = grid(poll, people), slots = daySlots(poll), n = duration / stepOf(poll), res = [];
@@ -319,7 +319,8 @@ export function bestWindows(poll, people, duration, { limit = 20, required = [],
         [...span[0].sure, ...span[0].maybe]);
       if (!either.length || sure.length < min) continue;
       if (required.some(n => !either.includes(n))) continue;
-      const places = avail ? freePlaces(avail, iso, slots[i], slots[i] + duration).length : 0;
+      // 空いている場所の数は、この枠に来られる人数（調整が必要も入れる）に合う場所と、人数の決まりがない場所だけ数える
+      const places = avail ? freePlaces(avail, iso, slots[i], slots[i] + duration).filter(p => capacityFit(p, either.length) !== "off").length : 0;
       res.push({ date: iso, start: slots[i], end: slots[i] + duration, sure, maybe: either.filter(x => !sure.includes(x)), places });
     }
   }
@@ -383,12 +384,43 @@ export function answerStatus(poll, people) {
 
 // ---------- 場所の空き状況（貼り付け4形式：1行に1つ・表（縦長）・表（日付×場所）・JSON） ----------
 const NONE_CELL = /^(|×|✕|x|-|ー|－|受付前|満|満室|なし)$/i;
-const HEAD = { place: ["場所", "店", "部屋", "スタジオ"], date: ["日付", "日"], free: ["空き", "空き時間", "時間"], note: ["メモ", "備考"], url: ["url", "リンク"], group: ["グループ", "エリア", "駅", "店舗"] };
+const HEAD = { place: ["場所", "店", "部屋", "スタジオ"], date: ["日付", "日"], free: ["空き", "空き時間", "時間"], note: ["メモ", "備考"], url: ["url", "リンク"], group: ["グループ", "エリア", "駅", "店舗"], capacity: ["人数", "適正人数", "定員"] };
 const headOf = cell => Object.keys(HEAD).find(k => HEAD[k].includes(String(cell).trim().toLowerCase()) || HEAD[k].includes(String(cell).trim()));
 const splitRow = (line, sep) => sep === "," ? line.split(",").map(s => s.trim()) : line.split("\t").map(s => s.trim());
 const tsuboNote = name => (String(name).match(/\d+(?:\.\d+)?\s*帖/) || [""])[0].replace(/\s/g, "");
 
-/** 空き状況を読む -> { asOf, places: [{ id, name, group, note, url }], slots: [{ place, date, free: ["HH:MM-HH:MM"] }], errors, format }
+// ---------- 場所の人数（適正人数） ----------
+// { min, max }（どちらか片方でもよい）。ない場所は「人数の決まりなし」として、どの人数にも出す
+const CAP_RE = /(\d{1,3})?\s*人?\s*[〜~～\-–ー－]\s*(\d{1,3})?\s*人/;
+const capInt = v => (v === "" || v == null) ? null : Number.isInteger(+v) && +v >= 1 && +v <= 999 ? +v : NaN;
+/** {min,max}・[min,max]・"4〜8人"・"〜6人"・"4人〜" などを { min?, max? } に。読めなければ null */
+export function normCapacity(c) {
+  if (c == null || c === "") return null;
+  let min, max;
+  if (Array.isArray(c)) [min, max] = c;
+  else if (typeof c === "object") ({ min, max } = c);
+  else if (typeof c === "number") max = c;
+  else {
+    const s = String(c).normalize("NFKC"), m = CAP_RE.exec(s) || /(\d{1,3})\s*人\s*[〜~～\-–ー－]/.exec(s);
+    if (!m) { const one = /^\s*(\d{1,3})\s*人?\s*$/.exec(s); if (!one) return null; max = one[1]; }
+    else [min, max] = [m[1], m[2]];
+  }
+  min = capInt(min); max = capInt(max);
+  if (Number.isNaN(min) || Number.isNaN(max) || (min == null && max == null) || (min != null && max != null && min > max)) return null;
+  return { ...(min != null ? { min } : {}), ...(max != null ? { max } : {}) };
+}
+/** メモの中の「4〜8人」「〜6人」を人数として読む（項目で渡されなかったとき） */
+const capacityInText = s => { const m = String(s || "").normalize("NFKC").match(/\d{0,3}\s*人?\s*[〜~～\-–ー－]\s*\d{0,3}\s*人/); return m ? normCapacity(m[0]) : null; };
+/** 人数を読む形に：「5〜8人」「〜6人」「4人〜」 */
+export const capacityLabel = c => !c ? "" : c.min != null && c.max != null ? (c.min === c.max ? `${c.min}人` : `${c.min}〜${c.max}人`) : c.max != null ? `〜${c.max}人` : `${c.min}人〜`;
+/** その人数に合うか：fit 合う／unknown 人数の決まりなし／off 合わない */
+export function capacityFit(place, n) {
+  const c = place?.capacity;
+  if (!c || (c.min == null && c.max == null)) return "unknown";
+  return (c.min == null || n >= c.min) && (c.max == null || n <= c.max) ? "fit" : "off";
+}
+
+/** 空き状況を読む -> { asOf, places: [{ id, name, group, note, url, capacity? }], slots: [{ place, date, free: ["HH:MM-HH:MM"] }], errors, format }
  *  poll の期間に入る日だけ、poll の刻みに丸めて残す。読めなかった行は errors に行番号と理由を入れて飛ばす */
 export function parseAvailability(input, poll = {}) {
   const step = stepOf(poll), from = poll.from, to = poll.to;
@@ -399,6 +431,7 @@ export function parseAvailability(input, poll = {}) {
     const id = String(extra.id || name).slice(0, 80);
     const cur = places.get(id) || { id, name, group: "", note: "", url: "" };
     for (const k of ["group", "note", "url"]) if (extra[k] && !cur[k]) cur[k] = String(extra[k]).trim().slice(0, k === "url" ? 500 : 200);
+    if (!cur.capacity) { const c = normCapacity(extra.capacity) || capacityInText(extra.note); if (c) cur.capacity = c; }
     if (!cur.note && tsuboNote(name)) cur.note = tsuboNote(name);
     places.set(id, cur); return id;
   };
@@ -446,7 +479,8 @@ export function parseAvailability(input, poll = {}) {
       const ids = first.slice(1).map(n => place(n));
       rows.slice(1).forEach((r, i) => {
         const k = String(r[0] || "").trim(); if (!k && r.every(c => !String(c).trim())) return;
-        const info = { "グループ": "group", "URL": "url", "url": "url", "メモ": "note" }[k];
+        const info = { "グループ": "group", "URL": "url", "url": "url", "メモ": "note", "人数": "capacity", "適正人数": "capacity" }[k];
+        if (info === "capacity") { r.slice(1).forEach((v, j) => { const p = places.get(ids[j]), c = normCapacity(v); if (p && c) p.capacity = c; }); return; }
         if (info) { r.slice(1).forEach((v, j) => { const p = places.get(ids[j]); if (p && v) p[info] = String(v).trim(); }); return; }
         const date = /^\d{4}-\d{2}-\d{2}$/.test(k) ? k : parseDate(k.replace(/\(.\)|（.）/g, ""), from, to);
         if (!date) { errors.push({ line: i + 2, text: k, reason: "日付が読めません" }); return; }
@@ -458,7 +492,7 @@ export function parseAvailability(input, poll = {}) {
       const col = Object.fromEntries(first.map((h, i) => [headOf(h), i]).filter(([k]) => k));
       rows.slice(1).forEach((r, i) => {
         if (r.every(c => !String(c).trim())) return;
-        const pid = place(r[col.place], { note: r[col.note], url: r[col.url], group: r[col.group] });
+        const pid = place(r[col.place], { note: r[col.note], url: r[col.url], group: r[col.group], capacity: r[col.capacity] });
         if (!pid) { errors.push({ line: i + 2, text: r.join(" "), reason: "場所がありません" }); return; }
         add(pid, r[col.date], r[col.free], i + 2);
       });
@@ -496,11 +530,28 @@ export function parseAvailability(input, poll = {}) {
   };
 }
 
+/** 空き状況の時点（asOf）を読む形に。"2026-11-13T22:37:00+09:00" -> "11/13 22:37"（日本時間）。ISO でなければそのまま */
+export function fmtAsOf(s) {
+  const t = String(s || "").trim();
+  if (!/^\d{4}-\d{2}-\d{2}(T|$)/.test(t)) return t;
+  const d = new Date(/T/.test(t) ? t : t + "T00:00:00+09:00");
+  if (Number.isNaN(+d)) return t;
+  const j = new Date(+d + 9 * 3600e3);   // 日本時間
+  const md = `${j.getUTCMonth() + 1}/${j.getUTCDate()}`;
+  return /T/.test(t) ? `${md} ${j.getUTCHours()}:${pad(j.getUTCMinutes())}` : md;
+}
+
 /** その日の [start, end) に、ずっと空いている場所 */
 export function freePlaces(avail, iso, start, end) {
   if (!avail) return [];
   const ok = new Set((avail.slots || []).filter(s => s.date === iso && parseRanges(s.free || []).some(([a, b]) => a <= start && b >= end)).map(s => s.place));
   return (avail.places || []).filter(p => ok.has(p.id));
+}
+/** その枠に空いている場所を、人数に合う順に分ける：{ fit, unknown, off }（n はその枠に来られる人数） */
+export function placesForWindow(avail, iso, start, end, n) {
+  const out = { fit: [], unknown: [], off: [] };
+  for (const p of freePlaces(avail, iso, start, end)) out[capacityFit(p, n)].push(p);
+  return out;
 }
 /** その日の各枠（分）に空いている場所があるか：Set(分) */
 export function freeSlotsOn(avail, iso, step = STEP) {
@@ -508,11 +559,12 @@ export function freeSlotsOn(avail, iso, step = STEP) {
   for (const s of avail?.slots || []) if (s.date === iso) for (const m of slotSet(parseRanges(s.free || [], step), step)) out.add(m);
   return out;
 }
-/** 場所のしぼり込み（グループ・メモや名前の文字） */
-export function filterPlaces(avail, { group = "", q = "" } = {}) {
+/** 場所のしぼり込み（グループはいくつでも選べる。どれかに入れば残す・メモや名前の文字） */
+export function filterPlaces(avail, { groups = [], group = "", q = "" } = {}) {
   if (!avail) return avail;
+  const gs = [...groups, ...(group ? [group] : [])];
   const words = String(q).trim().toLowerCase().split(/\s+/).filter(Boolean);
-  const keep = new Set((avail.places || []).filter(p => (!group || p.group === group)
+  const keep = new Set((avail.places || []).filter(p => (!gs.length || gs.includes(p.group))
     && words.every(w => `${p.name} ${p.note} ${p.group}`.toLowerCase().includes(w))).map(p => p.id));
   return { ...avail, places: avail.places.filter(p => keep.has(p.id)), slots: avail.slots.filter(s => keep.has(s.place)) };
 }

@@ -351,3 +351,68 @@ test("回答の進み具合：参加不可も回答に数え、使わない日�
   assert.deepEqual(L.progress(p, ppl), [{ name: "アキ", left: 0, total: 6 }, { name: "ベン", left: 4, total: 6 }]);
   assert.equal(L.answeredOn(ppl[1].days, "2026-12-03"), false);   // コメントだけは回答に数えない
 });
+
+test("場所の人数：いろいろな書き方を { min, max } に。読めない・逆さまは人数なし", () => {
+  assert.deepEqual(L.normCapacity({ min: 5, max: 8 }), { min: 5, max: 8 });
+  assert.deepEqual(L.normCapacity([3, 6]), { min: 3, max: 6 });
+  assert.deepEqual(L.normCapacity("4〜8人"), { min: 4, max: 8 });
+  assert.deepEqual(L.normCapacity("〜6人"), { max: 6 });
+  assert.deepEqual(L.normCapacity("4人〜"), { min: 4 });
+  assert.equal(L.normCapacity({ min: 9, max: 3 }), null);
+  assert.equal(L.normCapacity({ max: "x" }), null);
+  assert.equal(L.normCapacity(""), null);
+  assert.equal(L.capacityLabel({ min: 5, max: 8 }), "5〜8人");
+  assert.equal(L.capacityLabel({ max: 6 }), "〜6人");
+});
+
+test("場所の人数：JSON の capacity・表の「人数」列・メモの「4〜8人」を読む。なくてもよい", () => {
+  const P = { from: "2026-12-01", to: "2026-12-31" };
+  const j = L.parseAvailability(JSON.stringify({ format: "availability", version: 1, places: [
+    { id: "a", name: "A", group: "恵比寿", capacity: { min: 5, max: 8 } }, { id: "b", name: "B", group: "赤坂" }, { id: "c", name: "C", capacity: { min: 9, max: 1 } }],
+    slots: [{ place: "a", date: "2026-12-05", free: ["19:00-22:00"] }] }), P);
+  assert.deepEqual(j.places.map(x => x.capacity ?? null), [{ min: 5, max: 8 }, null, null]);
+  const t = L.parseAvailability("場所\t日付\t空き\t人数\nA\t12/5\t19:00-22:00\t3〜6人\nB\t12/5\t19:00-22:00\t", P);
+  assert.deepEqual(t.places.map(x => x.capacity ?? null), [{ min: 3, max: 6 }, null]);
+  const l = L.parseAvailability("居酒屋まる\t12/5\t18:00-23:00\t4〜8人 個室", P);
+  assert.deepEqual(l.places[0].capacity, { min: 4, max: 8 });
+});
+
+test("場所の人数：候補に来られる人数に合う場所 → 人数の決まりなし → 合わない場所に分ける", () => {
+  const avail = { places: [
+    { id: "big", name: "大", capacity: { min: 7, max: 12 } }, { id: "mid", name: "中", capacity: { min: 5, max: 8 } },
+    { id: "free", name: "決まりなし" }], slots: ["big", "mid", "free"].map(place => ({ place, date: "2026-12-05", free: ["19:00-22:00"] })) };
+  const g = L.placesForWindow(avail, "2026-12-05", 1140, 1260, 5);
+  assert.deepEqual([g.fit, g.unknown, g.off].map(x => x.map(p => p.id)), [["mid"], ["free"], ["big"]]);
+  assert.equal(L.capacityFit({ capacity: { max: 6 } }, 6), "fit");
+  assert.equal(L.capacityFit({ capacity: { min: 4 } }, 3), "off");
+  assert.equal(L.capacityFit({}, 3), "unknown");
+});
+
+test("よい枠：空いている場所は、人数に合う場所と人数の決まりがない場所だけ数える", () => {
+  const p = poll({ step: 60, dayStart: "18:00", dayEnd: "22:00" });
+  const five = ["ア", "イ", "ウ", "エ", "オ"].map(name => ({ name, days: { "2026-12-05": { sure: ["18:00-22:00"] } } }));
+  // 18-20 は大きい部屋（7人〜）だけ、20-22 は5〜8人の部屋が空いている
+  const avail = { places: [{ id: "big", name: "大", capacity: { min: 7 } }, { id: "mid", name: "中", capacity: { min: 5, max: 8 } }],
+    slots: [{ place: "big", date: "2026-12-05", free: ["18:00-20:00"] }, { place: "mid", date: "2026-12-05", free: ["20:00-22:00"] }] };
+  const w = L.bestWindows(p, five, 120, { avail });
+  assert.deepEqual(w.map(x => [L.fmtMin(x.start), x.places]), [["20:00", 1], ["18:00", 0]]);
+  // 人数を書いていない場所だけなら、前と同じに数える
+  const plain = { places: [{ id: "x", name: "X" }], slots: [{ place: "x", date: "2026-12-05", free: ["18:00-20:00"] }] };
+  assert.equal(L.fmtMin(L.bestWindows(p, five, 120, { avail: plain })[0].start), "18:00");
+});
+
+test("場所のしぼり込み：グループはいくつでも選べる（どれかに入れば残す）", () => {
+  const avail = { places: [{ id: "a", name: "A", group: "恵比寿" }, { id: "b", name: "B", group: "赤坂" }, { id: "c", name: "C", group: "新宿" }],
+    slots: ["a", "b", "c"].map(place => ({ place, date: "2026-12-05", free: ["19:00-22:00"] })) };
+  assert.deepEqual(L.filterPlaces(avail, { groups: ["恵比寿", "赤坂"] }).places.map(p => p.id), ["a", "b"]);
+  assert.deepEqual(L.filterPlaces(avail, { groups: [] }).places.length, 3);
+  assert.deepEqual(L.filterPlaces(avail, { groups: ["恵比寿", "赤坂"] }).slots.map(s => s.place), ["a", "b"]);
+});
+
+test("空き状況の時点：ISO の日時は「11/13 22:37」に。それ以外はそのまま", () => {
+  assert.equal(L.fmtAsOf("2026-11-13T22:37:00+09:00"), "11/13 22:37");
+  assert.equal(L.fmtAsOf("2026-11-13T13:05:00Z"), "11/13 22:05");
+  assert.equal(L.fmtAsOf("2026-11-13"), "11/13");
+  assert.equal(L.fmtAsOf("11/13 20:00"), "11/13 20:00");
+  assert.equal(L.fmtAsOf(""), "");
+});
