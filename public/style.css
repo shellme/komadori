@@ -480,3 +480,6 @@ div.howto .menu .pop { left: 0; right: auto; }
 
 #answered { display: grid; gap: 2px; }
 #answered p, #answered details.names { display: block; margin: 0; }
+
+/* 場所の空き状況：ファイルを落とせるところ */
+#placesText.dropping { outline: 2px dashed var(--hot-strong); outline-offset: 2px; background: var(--chip); }
