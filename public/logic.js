@@ -305,7 +305,7 @@ export function grid(poll, people) {
  *  min：最後まで「参加できる」人がこの人数より少ない枠は出さない
  *  並べ方：最後まで「参加できる」人数 → 「調整が必要」も含めた人数 → 日付・時刻の早い順。
  *  同じ日で開始が近い（duration 未満の差）枠はよいほう1つにまとめる */
-// 並べ方：参加できる人が多い順 → 調整で来られる人も入れて多い順 → 人数に合う空いている場所が多い順（avail があるとき）→ 早い日・早い時間
+// 並べ方：参加できる人が多い順 → 調整で来られる人も入れて多い順 → 人数に合う空いている場所が多い順 → 広めの場所が多い順（avail があるとき）→ 早い日・早い時間
 // 場所は人数が同じ枠どうしの比べにだけ使う（人数より場所を優先はしない）。近い枠をまとめるのは、この並びで先のものを残す
 export function bestWindows(poll, people, duration, { limit = 20, required = [], min = 1, avail = null } = {}) {
   const g = grid(poll, people), slots = daySlots(poll), n = duration / stepOf(poll), res = [];
@@ -319,13 +319,17 @@ export function bestWindows(poll, people, duration, { limit = 20, required = [],
         [...span[0].sure, ...span[0].maybe]);
       if (!either.length || sure.length < min) continue;
       if (required.some(n => !either.includes(n))) continue;
-      // 空いている場所の数は、この枠に来られる人数（調整が必要も入れる）に合う場所と、人数の決まりがない場所だけ数える
-      const places = avail ? freePlaces(avail, iso, slots[i], slots[i] + duration).filter(p => capacityFit(p, either.length) !== "off").length : 0;
-      res.push({ date: iso, start: slots[i], end: slots[i] + duration, sure, maybe: either.filter(x => !sure.includes(x)), places });
+      // 空いている場所：この枠に来られる人数（調整が必要も入れる）に合う場所と人数の決まりがない場所（places）、広めの場所（roomy）に分けて数える。入りきらない場所は数えない
+      let places = 0, roomy = 0;
+      if (avail) for (const p of freePlaces(avail, iso, slots[i], slots[i] + duration)) {
+        const f = capacityFit(p, either.length);
+        if (f === "fit" || f === "unknown") places++; else if (f === "roomy") roomy++;
+      }
+      res.push({ date: iso, start: slots[i], end: slots[i] + duration, sure, maybe: either.filter(x => !sure.includes(x)), places, roomy });
     }
   }
   res.sort((a, b) => b.sure.length - a.sure.length || (b.sure.length + b.maybe.length) - (a.sure.length + a.maybe.length)
-    || b.places - a.places || a.date.localeCompare(b.date) || a.start - b.start);
+    || b.places - a.places || b.roomy - a.roomy || a.date.localeCompare(b.date) || a.start - b.start);
   const picked = [];
   for (const w of res) {
     if (picked.some(p => p.date === w.date && Math.abs(p.start - w.start) < duration)) continue;
@@ -413,11 +417,14 @@ export function normCapacity(c) {
 const capacityInText = s => { const m = String(s || "").normalize("NFKC").match(/\d{0,3}\s*人?\s*[〜~～\-–ー－]\s*\d{0,3}\s*人/); return m ? normCapacity(m[0]) : null; };
 /** 人数を読む形に：「5〜8人」「〜6人」「4人〜」 */
 export const capacityLabel = c => !c ? "" : c.min != null && c.max != null ? (c.min === c.max ? `${c.min}人` : `${c.min}〜${c.max}人`) : c.max != null ? `〜${c.max}人` : `${c.min}人〜`;
-/** その人数に合うか：fit 合う／unknown 人数の決まりなし／off 合わない */
+/** その人数に合うか：fit 合う／unknown 人数の決まりなし／roomy 広め（人数が下限より少ない。使えるが割高なことが多い）／small 入りきらない（人数が上限より多い）
+ *  少人数で大きい部屋を使うのはよくあるので、広めは「使える場所」として扱い、合う場所の後ろに出す */
 export function capacityFit(place, n) {
   const c = place?.capacity;
   if (!c || (c.min == null && c.max == null)) return "unknown";
-  return (c.min == null || n >= c.min) && (c.max == null || n <= c.max) ? "fit" : "off";
+  if (c.max != null && n > c.max) return "small";
+  if (c.min != null && n < c.min) return "roomy";
+  return "fit";
 }
 
 /** 空き状況を読む -> { asOf, places: [{ id, name, group, note, url, capacity? }], slots: [{ place, date, free: ["HH:MM-HH:MM"] }], errors, format }
@@ -547,10 +554,11 @@ export function freePlaces(avail, iso, start, end) {
   const ok = new Set((avail.slots || []).filter(s => s.date === iso && parseRanges(s.free || []).some(([a, b]) => a <= start && b >= end)).map(s => s.place));
   return (avail.places || []).filter(p => ok.has(p.id));
 }
-/** その枠に空いている場所を、人数に合う順に分ける：{ fit, unknown, off }（n はその枠に来られる人数） */
+/** その枠に空いている場所を、人数に合う順に分ける：{ fit, unknown, roomy, small }（n はその枠に来られる人数） */
 export function placesForWindow(avail, iso, start, end, n) {
-  const out = { fit: [], unknown: [], off: [] };
+  const out = { fit: [], unknown: [], roomy: [], small: [] };
   for (const p of freePlaces(avail, iso, start, end)) out[capacityFit(p, n)].push(p);
+  out.roomy.sort((a, b) => a.capacity.min - b.capacity.min);   // 広めの中では、人数に近い（下限が小さい）部屋を先に
   return out;
 }
 /** その日の各枠（分）に空いている場所があるか：Set(分) */
