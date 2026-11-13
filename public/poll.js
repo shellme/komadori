@@ -1,7 +1,7 @@
 // 回答する・みんなの状況（/p/{pollId}）
 //   時間を入力：回答の状況の行・⚡ まとめて入力（曜日ごと）・未回答／すべて（件数）・月の切り替え・
 //              歯車（マスを押したときの動き・ロック）・日ごとの ⋯（コメント・この日の入力を消す）・まとめて・× 参加不可・取り消す
-//   みんなの状況：条件（長さ・対象・最低人数・日の並べ方）・日ごとの人数のマス（+調整）・★ 候補・参加できない人・コメント
+//   みんなの状況：条件（集まりたい長さ・対象の日・参加できる人数・並べ方）・日ごとの人数のマス（+調整）・★ 候補・参加できない人・コメント
 import { db, ready, call, doc, getDoc, setDoc, addDoc, collection, onSnapshot, serverTimestamp } from "./fb.js";
 import * as L from "./logic.js";
 import { JP_HOLIDAYS } from "./holidays.js";
@@ -560,7 +560,7 @@ function renderPlan() {
   $("#peopleCount").textContent = people.length ? `(${people.length})` : "";
   const total = people.length, dur = +$("#dur").value || poll.durations[0], kind = $("#kind").value;
   const txt = id => $(id).selectedOptions[0]?.textContent || "";
-  $("#planCond").textContent = [txt("#dur"), kind === "all" ? "すべての日" : txt("#kind"), +$("#min").value > 1 ? `${$("#min").value}人以上` : "", needed.size ? `必須：${[...needed].slice(0, 3).join("、")}${needed.size > 3 ? ` ほか${needed.size - 3}人` : ""}` : "", avail && pgroups.size ? `場所：${[...pgroups].join("・")}` : "", txt("#sort")].filter(Boolean).join("・");
+  $("#planCond").textContent = [txt("#dur"), txt("#kind"), +$("#min").value > 1 ? `${$("#min").value}人以上` : "", needed.size ? `必須：${[...needed].slice(0, 3).join("、")}${needed.size > 3 ? ` ほか${needed.size - 3}人` : ""}` : "", avail && pgroups.size ? `場所：${[...pgroups].join("・")}` : "", txt("#sort")].filter(Boolean).join("・");
   const ast = L.answerStatus(poll, people);
   // 回答の状況：全部の日に回答した人・まだ残りがある人（残りの日数）・まだ回答していない人（呼びたい人の一覧から）
   const prog = L.progress(poll, people);
