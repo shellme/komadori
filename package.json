@@ -6,7 +6,9 @@
     "test": "node --test tests/logic.test.mjs tests/ogp.test.mjs tests/help-samples.test.mjs",
     "test:rules": "PATH=/opt/homebrew/opt/openjdk/bin:$PATH npx firebase emulators:exec --only firestore --project demo-komadori 'node --test tests/rules.test.mjs'",
     "emu": "cp public/p.html functions/p.html && PATH=/opt/homebrew/opt/openjdk/bin:$PATH npx firebase emulators:start --only hosting,firestore,auth,functions --project demo-komadori",
-    "test:functions": "cp public/p.html functions/p.html && PATH=/opt/homebrew/opt/openjdk/bin:$PATH npx firebase emulators:exec --only firestore,auth,functions --project demo-komadori 'node --test tests/functions.test.mjs'"
+    "test:functions": "cp public/p.html functions/p.html && PATH=/opt/homebrew/opt/openjdk/bin:$PATH npx firebase emulators:exec --only firestore,auth,functions --project demo-komadori 'node --test tests/functions.test.mjs'",
+    "deploy": "npx firebase deploy --project komadori-app --only hosting,functions:pollPage",
+    "deploy:all": "npx firebase deploy --project komadori-app --only firestore:rules,functions,hosting"
   },
   "devDependencies": {
     "@firebase/rules-unit-testing": "^4.0.1",
