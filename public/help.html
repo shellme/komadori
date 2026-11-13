@@ -1,0 +1,181 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>使い方・よくある質問｜コマドリ</title>
+<link rel="icon" href="/icon.png" type="image/png" sizes="72x72">
+<link rel="icon" href="/icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="/icon.png">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="コマドリ｜日程調整ツール">
+<meta property="og:title" content="使い方・よくある質問｜コマドリ">
+<meta property="og:description" content="コマドリ（日程調整）の使い方と、よくある質問">
+<meta property="og:image" content="https://komadori.web.app/og/1f426.png">
+<meta property="og:image:width" content="160">
+<meta property="og:image:height" content="160">
+<meta name="twitter:card" content="summary">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Outfit:wght@500..900&display=swap">
+<link rel="stylesheet" href="/style.css">
+</head>
+<body>
+<header class="top"><a href="/" class="brand"><span class="brandicon" aria-hidden="true"></span>コマドリ</a></header>
+<main class="help">
+  <h1>使い方・よくある質問</h1>
+  <p class="sub">コマドリは、みんながそろう「コマ（時間の枠）」を見つける日程調整です。ログインはいりません。</p>
+
+  <nav class="toc" aria-label="このページの目次">
+    <a href="#make">呼びかける人</a><a href="#answer">回答する人</a><a href="#places">場所の空き状況の形</a><a href="#faq">よくある質問</a>
+  </nav>
+
+  <section class="card" id="make">
+    <h2>呼びかける人</h2>
+    <ol class="steps">
+      <li><b>日程調整をつくる</b>：<a href="/#create">トップ</a>で名前・期間（3か月まで）・1日のうちの時間・集まりたい長さを入れます。使わない日や時間帯、呼びたい人（先頭に <code>*</code> で必須）も入れられます。</li>
+      <li><b>URL を送る</b>：「回答用の URL」を LINE などで送ります。「管理用の URL」は自分だけで取っておきます（この端末にも覚えます）。</li>
+      <li><b>みんなの状況を見る</b>：日ごとに、何人そろうか・★ 候補（よい時間帯）が出ます。長さ・平日／土日祝・最低人数・必須の人でしぼれます。</li>
+      <li><b>場所の空き状況を貼る（任意）</b>：管理用の URL で開くと、スタジオ・お店などの空き状況を貼れます。候補ごとに空いている場所が出ます。</li>
+      <li><b>決める</b>：管理用の URL で、候補の「この枠に決める」を押すと、回答用の URL のいちばん上に決まった日時が出ます。カレンダーへの追加や、文面のコピーもできます。</li>
+    </ol>
+  </section>
+
+  <section class="card" id="answer">
+    <h2>回答する人</h2>
+    <ol class="steps">
+      <li><b>名前を入れる</b>：送られてきた URL を開き、名前を入れるか、一覧から自分の名前を選びます。</li>
+      <li><b>空いている時間を選ぶ</b>：日ごとに並んだ時間のマスを押します。押すたびに 空き → ● 参加できる → △ 調整が必要 と変わります。パソコンはなぞると続けて入ります。</li>
+      <li><b>まとめて入れる</b>：「まとめて」の 昼・夜 のボタンや、「⚡ まとめて入力」で曜日ごとにまとめて入れられます。1つの曜日に時間帯をいくつでも足せます（例：10〜21時は参加できる、9〜10時と21〜22時は調整が必要）。あとから1日ずつ変えられます。</li>
+      <li><b>行けない日</b>：「× 参加不可」を押します。ひとことは ⋯ の「コメントを書く」から。</li>
+    </ol>
+    <p>押したらその場で保存します。保存ボタンはありません。</p>
+  </section>
+
+  <section class="card" id="places">
+    <h2>場所の空き状況の形</h2>
+    <p class="sub">スタジオ・お店・会議室など「場所ごとに、空いている時間」を、次の4つのどれかで貼ります。形はアプリが見分けます。管理用の URL で開き、［📍 場所の空き状況］から貼ってください（.txt・.csv・.json のファイルも読み込めます）。</p>
+
+    <h3>1. 1行に1つ（手で書くとき）</h3>
+    <p>「場所・日付・空いている時間」をタブで区切ります。4つめからはメモ（広さ・人数など）。<code>http</code> で始まるものは予約ページのリンクになります。</p>
+<pre class="sample">スタジオA 32帖	12/5	13:00-18:00, 19:00-22:00
+スタジオA 32帖	12/6	10:00-12:00
+居酒屋まる	12/5	18:00-23:00	4〜8人	https://example.com/maru</pre>
+    <p>タブがないときは「場所 日付 時間帯」を空白で区切って読みます（例：<code>会議室B 12/7 9:00-12:00</code>）。場所の名前に空白があるときはタブを使ってください</p>
+
+    <h3>2. 表（縦長・スプレッドシートからコピー）</h3>
+    <p>1行目を見出しにします。見出しの名前で列を見分けるので、列の順番は自由です。タブ区切り・カンマ区切りのどちらでも読めます。</p>
+<pre class="sample">場所	日付	空き	メモ	URL	グループ
+スタジオA	2026/12/5	13:00-18:00 / 19:00-22:00	32帖	https://example.com/a	新宿
+スタジオB	12/6	10:00-12:00	20帖		代々木</pre>
+    <ul class="plain sub">
+      <li><b>場所</b>（必須）：「店」「部屋」「スタジオ」でも可</li>
+      <li><b>日付</b>（必須）・<b>空き</b>（必須）：「空き時間」「時間」でも可</li>
+      <li>メモ（「備考」）・URL（「リンク」）・グループ（「エリア」「駅」「店舗」）は任意。グループは結果で場所をしぼるのに使えます</li>
+    </ul>
+
+    <h3>3. 表（日付×場所の横長）</h3>
+    <p>1行目の1列目を「日付」にし、2列目から場所を並べます。「グループ」「URL」「メモ」の行を入れると、その列の場所の情報になります。</p>
+<pre class="sample">日付	スタジオA 32帖	スタジオB 20帖
+グループ	新宿	代々木
+URL	https://example.com/a	https://example.com/b
+2026-12-05	13:00-18:00 / 19:00-22:00	受付前
+2026-12-06	10:00-12:00	×</pre>
+    <p>空きがない日は、空欄・「×」「-」「受付前」「満」「満室」「なし」のどれかにします</p>
+
+    <h3>4. JSON（ほかのツールから渡すとき）</h3>
+<pre class="sample">{
+  "format": "availability",
+  "version": 1,
+  "asOf": "2026-11-11T09:00:00+09:00",
+  "places": [
+    { "id": "a32", "name": "スタジオA 32帖", "group": "新宿", "note": "ドラム2台", "url": "https://example.com/a" }
+  ],
+  "slots": [
+    { "place": "a32", "date": "2026-12-05", "free": ["13:00-18:00", "19:00-22:00"] }
+  ]
+}</pre>
+    <p><code>place</code> は places の <code>id</code>（なければ <code>name</code> でも可）。<code>asOf</code> は「いつ時点の空き状況か」で、結果の画面に出ます</p>
+
+    <h3>共通の決まり</h3>
+    <ul class="plain sub">
+      <li>時刻は24時間で「13:00」の形（「9:00」も可）。日をまたぐときは「22:00-26:00」のように24時より先も書けます</li>
+      <li>時間帯の区切りは「-」「〜」「~」「–」のどれでも。複数は「,」「、」「/」「／」で区切ります</li>
+      <li>日付は「2026-12-05」「2026/12/5」「12/5」。年がなければ日程調整の期間から決めます。期間の外の日は使いません</li>
+      <li>日程調整の刻み（30分か1時間）に合わせて丸めます（始まりは切り上げ、終わりは切り捨て。例：30分刻みで 13:10-15:50 → 13:30-15:30）</li>
+      <li>場所の名前に「32帖」のような広さがあれば、メモにも入れます</li>
+      <li>読めない行は、何行目か・なぜかを出して飛ばします（ほかの行は使います）</li>
+    </ul>
+
+    <h3 id="ai">AI に作ってもらうときの指示</h3>
+    <p>予約サイトの空き状況のページやスクリーンショット、メールなどを AI（ChatGPT・Claude など）に渡して、貼れる形に直してもらえます。下の指示をコピーし、［　］を書きかえて、空き状況の情報と一緒に送ってください。できた表をそのまま貼れます。</p>
+<pre class="sample" id="aiPrompt">次の空き状況の情報を、日程調整ツール「コマドリ」に貼れる表に直してください。
+
+# 出してほしい形
+- タブ区切りの表。1行目は見出しで「場所	日付	空き	メモ	URL	グループ」
+- 1行に「1つの場所の1日分」
+- 日付は YYYY-MM-DD（例：2026-12-05）
+- 空きは 24時間の「HH:MM-HH:MM」。空いている時間帯が複数あるときは「, 」で区切る（例：13:00-18:00, 19:00-22:00）
+- 日をまたぐときは 24時より先で書く（例：22:00-26:00）
+- 空きがない日は行を出さない
+- メモには広さ・人数・値段など、場所を選ぶのに役立つことを短く。わからなければ空欄
+- URL は予約ページがわかれば。わからなければ空欄
+- グループには店舗名・駅・エリアなど、場所をまとめる名前。わからなければ空欄
+- 表だけを出し、前後の説明は書かない。コードブロックに入れる
+
+# 条件
+- 期間：［2026-12-01］〜［2026-12-31］の日だけ
+- 時間：［9:00］〜［23:00］の間だけ（それより外は切る）
+- 場所：［例：スタジオAとスタジオBの 20帖以上の部屋だけ］
+- 読み取れない・あいまいなところは、推測で埋めずに表の後ろに「確認が必要：…」と1行で書く
+
+# 空き状況の情報
+［ここに予約サイトの表・メール・スクリーンショットの内容を貼る］</pre>
+    <div class="actions"><button type="button" class="btn sm" id="copyPrompt">指示をコピー</button></div>
+  </section>
+
+  <section class="card" id="faq">
+    <h2>よくある質問</h2>
+    <details><summary>ログインや会員登録はいりますか？</summary>
+      <p>いりません。URL を知っている人なら誰でも見て回答できます。そのため、日程調整の URL は呼びたい人だけに送ってください。</p></details>
+    <details><summary>前に入れた回答を変えたい／別のスマホから変えたい</summary>
+      <p>同じ端末なら、開くと自分の回答がそのまま出ます。別の端末からは、名前の一覧で自分の名前を選ぶと変えられます。誰がどの端末で変えたかは記録に残ります。</p></details>
+    <details><summary>管理用の URL をなくしてしまいました</summary>
+      <p>日程調整をつくった端末なら、トップの「この端末で見た日程調整」に「つくった日程調整」として残っています。ほかの端末からは取り出せないので、作ったらメモなどに残しておいてください。</p></details>
+    <details><summary>30分刻みと1時間刻みのどちらがいいですか？</summary>
+      <p>はじめは1時間になっています。スタジオのように30分単位で取れる場所なら30分、ざっくり決めたいなら1時間がおすすめです。刻みはあとから「⚙️ 設定を編集」で変えられます。</p></details>
+    <details><summary>1つの日程調整は何人まで使えますか？</summary>
+      <p>回答できるのは100人まで、呼びたい人の一覧も100人までです。快適に使える目安は50人くらいまでです（人数と期間が多いほど、みんなの状況の計算に時間がかかり、スマホでは表示が少し遅くなります）。それより大人数のときは、グループごとに日程調整を分けるのがおすすめです。</p></details>
+    <details><summary>あとから設定を変えられますか？</summary>
+      <p>管理用の URL の「⚙️ 設定を編集」で、つくるときに決めたことはすべて変えられます。期間や1日の範囲を縮めても回答は消えません（外になったところは出なくなるだけで、元に戻せばまた出ます）。30分刻みを1時間刻みにすると、回答は1時間に丸めて数えます（変える前に、何人の回答が丸まるかを知らせます）。</p></details>
+    <details><summary>「必須の人」とは？</summary>
+      <p>その人が来られない時間は候補に出さない人です。△（調整が必要）の時間は、来られるとして数えます。呼びたい人の名前の先頭に <code>*</code> を付けるか、みんなの状況の「必須の人」で選びます。</p></details>
+    <details><summary>場所の空き状況はどんな形で貼れますか？</summary>
+      <p>1行に1つ・表（縦長）・表（日付×場所）・JSON の4つです。くわしくは<a href="#places">場所の空き状況の形</a>を見てください。AI に作ってもらうための<a href="#ai">指示</a>も載せています。</p></details>
+    <details><summary>祝日はどう扱いますか？</summary>
+      <p>日本の祝日を初めから入れてあり、土日と同じに数えます（「平日」の使わない時間帯は祝日にはかかりません）。</p></details>
+    <details><summary>土日祝だけで日程調整できますか？</summary>
+      <p>できます。使わない日・時間帯に <code>平日</code> とだけ書くと、祝日でない平日が丸ごと使わない日になり、土日と祝日だけが残ります（<code>月 火 水 木 金</code> と曜日で書くと、平日の祝日も消えます）。</p></details>
+    <details><summary>日程調整はいつまで残りますか？</summary>
+      <p>期間の終わりから90日たつと、回答ごと自動で消えます。管理用の URL の「この日程調整を削除」で、すぐに消すこともできます。</p></details>
+    <details><summary>お金はかかりますか？</summary>
+      <p>かかりません。</p></details>
+    <details><summary>不具合や要望、回答を消してほしいときは？</summary>
+      <p>日程調整ごと消すときは、管理用の URL の「この日程調整を削除」から消せます。自分の回答は、「⚡ まとめて入力」の「入力をまとめて消す」か、日ごとの ⋯ の「この日の入力を消す」で消せます。名前ごと消してほしいときや、不具合・要望は、<a href="https://github.com/shellme/komadori/issues" target="_blank" rel="noopener">GitHub の Issues</a> から知らせてください（GitHub のアカウントが要ります）。</p></details>
+    <details><summary>誰が作っていますか？</summary>
+      <p>軽音サークルのバンドの練習日を決めるために、<a href="https://github.com/shellme" target="_blank" rel="noopener">shellme</a> が個人で作っています。コードは <a href="https://github.com/shellme/komadori" target="_blank" rel="noopener">GitHub</a> で公開しています（MIT ライセンス）。</p></details>
+  </section>
+</main>
+<footer class="foot">
+  <span>© 2026 <a href="https://github.com/shellme" target="_blank" rel="noopener">shellme</a></span>
+  <a href="/#create">日程調整をつくる</a>
+  <a href="/help">使い方・よくある質問</a>
+  <a href="https://github.com/shellme/komadori/issues" target="_blank" rel="noopener">不具合・要望</a>
+  <span>絵文字：<a href="https://github.com/jdecked/twemoji" target="_blank" rel="noopener">Twemoji</a>（CC-BY 4.0）</span>
+</footer>
+<script type="module">
+  import { copy } from "/ui.js";
+  document.querySelector("#copyPrompt").addEventListener("click", () => copy(document.querySelector("#aiPrompt").textContent, "指示をコピーしました"));
+</script>
+</body>
+</html>

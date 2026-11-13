@@ -1,0 +1,189 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>コマドリ</title>
+<link rel="icon" href="/icon.png" type="image/png" sizes="72x72">
+<link rel="icon" href="/icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="/icon.png">
+<!--OGP-->
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="コマドリ｜日程調整ツール">
+<meta property="og:title" content="コマドリ｜日程調整">
+<meta property="og:description" content="みんながそろう時間を見つける日程調整。空いている時間を回答してください">
+<meta property="og:image" content="https://komadori.web.app/og/1f426.png">
+<meta property="og:image:width" content="160">
+<meta property="og:image:height" content="160">
+<meta name="twitter:card" content="summary">
+<!--/OGP-->
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Outfit:wght@500..900&display=swap">
+<link rel="stylesheet" href="/style.css">
+<script src="https://cdn.jsdelivr.net/npm/@twemoji/api@15.1.0/dist/twemoji.min.js" crossorigin="anonymous"></script>
+
+</head>
+<body>
+<header class="top"><a href="/" class="brand"><span class="brandicon" aria-hidden="true"></span>コマドリ</a></header>
+<main>
+  <p id="loading" class="sub">読み込んでいます…</p>
+  <div id="missing" hidden>
+    <h1>この日程調整は見つかりません</h1>
+    <p class="empty">URL がまちがっているか、削除された日程調整です</p>
+    <p style="margin-top:16px"><a class="btn" href="/">トップへ</a></p>
+  </div>
+
+  <div id="poll" hidden>
+    <h1 id="title"></h1>
+    <p class="sub" id="meta"></p>
+    <div id="decidedBox" class="card decided" hidden>
+      <div><span class="tag dark">決定</span> <span class="sub">この日時に決まりました🎉</span></div>
+      <p class="dwhen font-num" id="decidedWhen"></p>
+      <p id="decidedPlace" style="font-weight:700" hidden></p>
+      <div class="actions">
+        <a class="btn sm" id="gcal" href="#" target="_blank" rel="noopener">Google カレンダーに追加</a>
+        <button type="button" class="btn sm" id="ics">カレンダーのファイル（.ics）</button>
+        <button type="button" class="btn sm" id="copyDecided">文面をコピー</button>
+        <button type="button" class="btn sm ngbtn danger" id="undecide" hidden>決定を取り消す</button>
+      </div>
+    </div>
+    <p id="note" class="quote" hidden style="margin-top:8px"></p>
+    <div class="actions" style="margin-top:8px"><button type="button" class="btn sm" id="share">送る</button><button type="button" class="btn sm" id="copyAnswerUrl">回答用の文面をコピー</button></div>
+    <details id="excludeBox" class="sub" hidden style="margin-top:8px"><summary>使わない日・時間帯</summary><ul class="plain" id="excludeList"></ul></details>
+    <div id="adminBox" class="adm" hidden style="margin-top:16px">
+      <div><span class="tag dark">管理</span> <span class="sub">管理用の URL で開いています。みんなに送るのは回答用の URL です</span></div>
+      <input type="hidden" id="answerUrl">
+      <div class="actions">
+        <button type="button" class="btn sm" id="openEdit">⚙️ 設定を編集</button>
+        <button type="button" class="btn sm" id="openPlaces">📍 場所の空き状況 <span class="sub" id="placesNow" style="font-weight:400"></span></button>
+      </div>
+    </div>
+
+    <div class="modes" role="tablist">
+      <button role="tab" id="tabAnswer" aria-selected="true" aria-controls="answer">自分の時間を回答</button>
+      <button role="tab" id="tabResult" aria-selected="false" aria-controls="result">みんなの状況 <span id="peopleCount"></span></button>
+    </div>
+
+    <section id="answer" role="tabpanel" aria-labelledby="tabAnswer">
+      <div class="card">
+        <!-- 回答中：名前と、変える・切り替えるボタンだけ -->
+        <div id="whoView" class="whoview" hidden>
+          <div><span class="k">回答している人</span><p class="whoname" id="whoName"></p></div>
+          <div class="actions"><button type="button" class="btn sm" id="renameBtn">名前を変える</button><button type="button" class="btn sm" id="switchBtn">ほかの人に切り替える</button></div>
+        </div>
+        <!-- まだ：名前を入れる（前に回答した人・呼ばれている人なら選ぶ） -->
+        <div id="whoEdit" class="field">
+          <label for="name">名前</label>
+          <input type="text" id="name" maxlength="40" placeholder="例：アキ" autocomplete="nickname">
+          <div class="field" id="whoPick" style="margin-top:4px"><label for="who" class="sub" style="font-weight:700">または、一覧から選ぶ</label><select id="who"></select></div>
+          <p class="info" id="whoNote"></p>
+          <div class="actions" id="whoDoneRow" hidden><button type="button" class="btn sm" id="whoDone">やめる</button></div>
+        </div>
+      </div>
+      <div class="row" style="justify-content:space-between;flex-wrap:nowrap;margin:0 2px 12px">
+        <span class="meter" id="meter" aria-live="polite" style="margin:0;flex:1 1 auto"></span>
+        <button type="button" class="btn primary" id="tplOpen" style="flex:0 0 auto">⚡ まとめて入力</button>
+      </div>
+      <!-- 日をしぼる：ちがう日だけ直したいときに探す（月・曜日・未回答だけ） -->
+      <div class="dayfilter">
+        <span class="k">日をしぼる</span>
+        <select id="fMonth" aria-label="月"></select>
+        <div class="wdchips" id="fWd" role="group" aria-label="曜日"></div>
+        <label class="check"><input type="checkbox" id="inTodo">未回答だけ</label>
+      </div>
+      <p class="filternote" id="filterNote" hidden><span id="filterText"></span><button type="button" class="btn sm" id="filterClear">しぼり込みを外す</button></p>
+      <p class="howto">マスを押すたびに切り替わります：<i class="sw no">−</i>行けない → <i class="sw sure">●</i>参加できる → <i class="sw maybe">△</i>調整が必要。その日に1つでも入れると、入れていない時間は「−」になります</p>
+      <div id="days"></div>
+    </section>
+
+    <section id="result" role="tabpanel" aria-labelledby="tabResult" hidden>
+      <p class="sub" style="margin:0 2px 12px">★ 候補が決めるときの目安です</p>
+      <details class="card" id="planFilters" style="gap:0;padding-top:12px;padding-bottom:12px">
+        <summary class="condsum"><b>条件</b><span id="planCond" class="sub"></span><span class="change">変更</span></summary>
+        <div class="condgrid">
+          <label class="field"><span class="label">長さ</span><select id="dur"></select></label>
+          <label class="field"><span class="label">対象</span><select id="kind"><option value="all">すべて</option><option value="W">土日祝</option><option value="E">平日</option></select></label>
+          <label class="field"><span class="label">最低人数 <span class="sub">● の人</span></span><select id="min"><option value="1">1人以上</option></select></label>
+          <label class="field"><span class="label">日の並べ方</span><select id="sort"><option value="score">そろう人が多い日から</option><option value="date">日付の順</option></select></label>
+        </div>
+        <div class="condgrid" id="placeFilters" hidden>
+          <label class="field"><span class="label">場所のグループ</span><select id="pgroup"><option value="">すべて</option></select></label>
+          <label class="field" style="grid-column:span 2"><span class="label">場所の名前・メモで探す</span><input type="text" id="pq" placeholder="例：32帖 ドラム"></label>
+        </div>
+        <div class="field" style="margin-top:12px"><span class="label">必須の人 <span class="sub">来られない枠は出しません。押して切り替え</span></span><div class="chips" id="reqChips"></div></div>
+      </details>
+      <div class="legend" style="margin:0 2px 8px" aria-label="マスの見方"><i class="h1"></i><i class="h4" style="margin-left:-6px"></i><span>数字＝参加できる人数（緑が濃いほど多い）</span><b style="color:var(--maybe)">+2</b><span>調整すれば来られる人数</span><i class="hx"></i><span>使わない時間</span><span id="legendFree" hidden style="display:inline-flex;align-items:center;gap:6px"><i class="h0" style="border-bottom:4px solid var(--ink)"></i><span>空いている場所がある時間</span></span></div>
+      <p class="sub" id="answered" style="margin:0 2px 8px"></p>
+      <p class="sub" id="placesAsOfNote" style="margin:0 2px 8px" hidden></p>
+      <div id="planNote"></div>
+      <div id="plan"></div>
+    </section>
+  </div>
+</main>
+<footer class="foot">
+  <span>© 2026 <a href="https://github.com/shellme" target="_blank" rel="noopener">shellme</a></span>
+  <a href="/#create">日程調整をつくる</a>
+  <a href="/help">使い方・よくある質問</a>
+  <a href="https://github.com/shellme/komadori/issues" target="_blank" rel="noopener">不具合・要望</a>
+  <span>絵文字：<a href="https://github.com/jdecked/twemoji" target="_blank" rel="noopener">Twemoji</a>（CC-BY 4.0）</span>
+</footer>
+<dialog id="editDlg" aria-labelledby="editH">
+  <form method="dialog" class="dlg" id="editForm">
+    <h3 id="editH">⚙️ 設定を編集</h3>
+    <div class="row"><label class="field" style="flex:0 0 6em"><span class="label">アイコン</span><input type="text" id="edEmoji" maxlength="16" placeholder="例：🎸"></label>
+      <label class="field"><span class="label">名前</span><input type="text" id="edTitle" maxlength="80"></label></div>
+    <div class="field"><span class="label">期間 <span class="sub">3か月まで</span></span>
+      <div class="row"><input type="date" id="edFrom" aria-label="期間のはじめ"><span class="tilde">〜</span><input type="date" id="edTo" aria-label="期間のおわり"></div></div>
+    <div class="field"><span class="label">時間の刻み</span>
+      <div class="radios row-radios" id="edStep" role="radiogroup" aria-label="時間の刻み">
+        <label><input type="radio" name="edStep" value="30">30分</label>
+        <label><input type="radio" name="edStep" value="60">1時間</label>
+      </div></div>
+    <div class="field"><span class="label">1日のうち、この時間の間で</span>
+      <div class="row"><select id="edDayStart" aria-label="何時から"></select><span class="tilde">〜</span><select id="edDayEnd" aria-label="何時まで"></select></div></div>
+    <div class="field"><span class="label">集まりたい長さ</span><div class="radios row-radios" id="edDur" role="group" aria-label="集まりたい長さ"></div></div>
+    <label class="field"><span class="label">メモ</span><textarea id="edNote" maxlength="1000"></textarea></label>
+    <label class="field"><span class="label">呼びたい人 <span class="sub">1行に1人。* は必須</span></span><textarea id="edInvited"></textarea></label>
+    <label class="field"><span class="label">使わない日・時間帯 <span class="sub">1行に1つ</span></span><textarea id="edExclude"></textarea></label>
+    <div class="errors" id="edErrors"></div>
+    <p class="info">期間や1日の範囲を縮めても回答は消えません（外になったところは出なくなるだけで、元に戻せばまた出ます）。30分刻みを1時間刻みにすると、回答は1時間に丸めて数えます</p>
+    <p class="confirmnote" id="editNote" hidden></p>
+    <div class="actions dlgfoot"><button type="button" class="btn ngbtn danger" id="pollDel">この日程調整を削除</button>
+      <button type="button" class="btn" data-close>やめる</button><button type="button" class="btn primary" id="edSave">保存する</button></div>
+  </form>
+</dialog>
+<dialog id="placesDlg" aria-labelledby="placesH">
+  <form method="dialog" class="dlg">
+    <h3 id="placesH">📍 場所の空き状況</h3>
+    <p class="info">場所ごとの空いている時間を貼ると、候補に「空いている場所」が出ます。書き方は［形の説明・AI への指示］へ</p>
+    <p class="sub" id="placesNowDlg"></p>
+    <textarea id="placesText" style="min-height:120px;font-size:13px" placeholder="例：&#10;スタジオA 32帖	12/5	13:00-18:00, 19:00-22:00&#10;居酒屋まる	12/5	18:00-23:00	4〜8人"></textarea>
+    <div class="actions"><label class="btn sm">ファイルを読み込む<input type="file" id="placesFile" accept=".txt,.tsv,.csv,.json,text/*,application/json" hidden></label>
+      <a class="btn sm" href="/help#places" target="_blank" rel="noopener">形の説明・AI への指示</a></div>
+    <label class="field"><span class="label">いつ時点の空き状況か <span class="sub">任意</span></span><input type="text" id="placesAsOf" placeholder="例：11/11 9:00"></label>
+    <div id="placesPreview" class="sub"></div>
+    <div class="errors" id="placesErrors"></div>
+    <p class="confirmnote" id="placesNote" hidden></p>
+    <div class="actions dlgfoot"><button type="button" class="btn ngbtn danger" id="placesDel" hidden>貼った空き状況を消す</button>
+      <button type="button" class="btn" data-close>やめる</button><button type="button" class="btn primary" id="placesSave" disabled>保存する</button></div>
+  </form>
+</dialog>
+<dialog id="tplDlg" aria-labelledby="tplH">
+  <form method="dialog" id="tplForm" class="dlg">
+    <h3 id="tplH">いつもの予定でまとめて入力</h3>
+    <p class="info">曜日ごとに入れます。あとから1日ずつ変えられます</p>
+    <fieldset class="scope"><legend class="k">入れる日</legend>
+      <label><input type="radio" name="tplScope" value="all" checked>全部の日</label>
+      <label><input type="radio" name="tplScope" value="month"><span id="tplMonthL">表示中の月だけ</span></label>
+    </fieldset>
+    <div id="tplRows" class="tplrows"></div>
+    <label class="check"><input type="checkbox" id="tplOver">回答済みの日も上書きする</label>
+    <p class="confirmnote" id="tplNote" hidden></p>
+    <div class="actions dlgfoot"><button type="button" class="btn ngbtn danger" id="tplClear">入力をまとめて消す</button>
+      <button type="button" class="btn" id="tplCancel">やめる</button><button type="submit" class="btn primary">まとめて入れる</button></div>
+  </form>
+</dialog>
+<script type="module" src="/poll.js"></script>
+</body>
+</html>

@@ -1,0 +1,116 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>コマドリ｜みんながそろう時間を見つける日程調整</title>
+<link rel="icon" href="/icon.png" type="image/png" sizes="72x72">
+<link rel="icon" href="/icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="/icon.png">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="コマドリ｜日程調整ツール">
+<meta property="og:title" content="コマドリ｜みんながそろう時間を見つける日程調整">
+<meta property="og:description" content="みんながそろう時間を見つける日程調整。期間だけ決めて URL を送ると、何時間そろうかをよい順に並べます。ログインはいりません">
+<meta property="og:image" content="https://komadori.web.app/og/1f426.png">
+<meta property="og:image:width" content="160">
+<meta property="og:image:height" content="160">
+<meta name="twitter:card" content="summary">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Outfit:wght@500..900&display=swap">
+<link rel="stylesheet" href="/style.css">
+<script src="https://cdn.jsdelivr.net/npm/@twemoji/api@15.1.0/dist/twemoji.min.js" crossorigin="anonymous"></script>
+
+</head>
+<body>
+<header class="top"><a href="/" class="brand"><span class="brandicon" aria-hidden="true"></span>コマドリ</a></header>
+<main>
+  <section id="intro">
+    <h1>みんながそろう「コマ」を見つける</h1>
+    <p class="sub">期間を決めて URL を送ると、みんなが日ごとの空き時間を回答します。ログインはいりません。</p>
+  </section>
+
+  <section id="recent" class="card" hidden>
+    <h2>この端末で見た日程調整</h2>
+    <ul class="plain" id="recentList"></ul>
+  </section>
+
+  <form id="create" class="card" novalidate>
+    <h2>日程調整をつくる</h2>
+    <div class="field">
+      <label for="title">名前</label>
+      <input type="text" id="title" maxlength="80" placeholder="例：12月のバンド練習" required>
+    </div>
+    <div class="field">
+      <span class="label">アイコン <span class="sub">共有するときにも使います</span></span>
+      <div class="emojis" id="emojis" role="group" aria-label="アイコン"></div>
+    </div>
+    <div class="field">
+      <span class="label">期間 <span class="sub">3か月まで</span></span>
+      <div class="row"><input type="date" id="from" aria-label="期間のはじめ"><span class="tilde">〜</span><input type="date" id="to" aria-label="期間のおわり"></div>
+    </div>
+    <div class="field">
+      <span class="label">時間の刻み</span>
+      <div class="radios row-radios" id="step" role="radiogroup" aria-label="時間の刻み">
+        <label><input type="radio" name="step" value="30">30分</label>
+        <label><input type="radio" name="step" value="60" checked>1時間</label>
+      </div>
+      <p class="info">回答するマスの細かさ。スタジオなど30分単位で取れる場所なら30分、ざっくり決めたいときは1時間</p>
+    </div>
+    <div class="field">
+      <span class="label">1日のうち、この時間の間で</span>
+      <div class="row"><select id="dayStart" aria-label="何時から"></select><span class="tilde">〜</span><select id="dayEnd" aria-label="何時まで"></select></div>
+    </div>
+    <div class="field">
+      <span class="label">集まりたい長さ <span class="sub">いくつでも</span></span>
+      <div class="radios row-radios" id="durations" role="group" aria-label="集まりたい長さ"></div>
+    </div>
+    <div class="field">
+      <label for="exclude">使わない日・時間帯 <span class="sub">任意・1行に1つ</span></label>
+      <textarea id="exclude" placeholder="例：&#10;12/24&#10;月 水&#10;平日 9:00-18:00&#10;12/12 18:00-23:00 別のライブ"></textarea>
+      <p class="info">例の4つの書き方ができます（日付／曜日／「平日・土日・土日祝・毎日」＋時間／日付＋時間とひとこと）。祝日は土日と同じに数えます</p>
+      <ul class="plain sub" id="excludePreview"></ul>
+      <div class="errors" id="excludeErrors"></div>
+    </div>
+    <div class="field">
+      <label for="invited">呼びたい人 <span class="sub">任意・1行に1人。先頭に * を付けると必須の人</span></label>
+      <textarea id="invited" placeholder="例：&#10;*アキ&#10;ベン&#10;チカ"></textarea>
+      <p class="info">まだ回答していない人がわかり、必須の人が来られない枠は候補に出なくなります</p>
+      <p class="sub" id="invitedPreview"></p>
+    </div>
+    <div class="field">
+      <label for="note">メモ <span class="sub">任意・回答する人に見えます</span></label>
+      <textarea id="note" maxlength="1000" placeholder="例：スタジオは新宿あたり。2時間とれたらうれしいです"></textarea>
+    </div>
+    <div class="errors" id="errors" role="alert"></div>
+    <div class="actions dlgfoot"><button class="btn primary" type="submit" id="submit">つくる</button></div>
+  </form>
+
+  <section id="done" hidden>
+    <h1>できました</h1>
+    <div class="card">
+      <h2>回答用の URL</h2>
+      <p class="sub">LINE などでみんなに送ってください</p>
+      <p class="quote" id="shareText"></p>
+      <div class="actions"><button type="button" class="btn primary" id="share">送る</button><button type="button" class="btn" id="copyShare">文面をコピー</button></div>
+      <input type="hidden" id="answerUrl">
+    </div>
+    <div class="card">
+      <h2>管理用の URL <span class="tag dark">自分だけ</span></h2>
+      <p class="warn danger">人に送らず、自分で取っておいてください。この URL を知っている人は、設定の編集・決定・削除ができます</p>
+      <p class="info">この端末には覚えておきます（トップの「この端末で見た日程調整」から開けます）</p>
+      <div class="url"><input type="text" id="adminUrl" readonly aria-label="管理用の URL"><button type="button" class="btn sm" data-copy="adminUrl">コピー</button></div>
+    </div>
+    <div class="actions"><a class="btn" id="openPoll" href="#">開いて自分も回答する</a></div>
+  </section>
+</main>
+<footer class="foot">
+  <span>© 2026 <a href="https://github.com/shellme" target="_blank" rel="noopener">shellme</a></span>
+  <a href="/#create">日程調整をつくる</a>
+  <a href="/help">使い方・よくある質問</a>
+  <a href="https://github.com/shellme/komadori/issues" target="_blank" rel="noopener">不具合・要望</a>
+  <span>絵文字：<a href="https://github.com/jdecked/twemoji" target="_blank" rel="noopener">Twemoji</a>（CC-BY 4.0）</span>
+</footer>
+<script type="module" src="/create.js"></script>
+</body>
+</html>

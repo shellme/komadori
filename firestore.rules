@@ -1,0 +1,79 @@
+rules_version = '2';
+// コマドリのアクセスルール（テスト：npm run test:rules）
+// - ログインなし（端末ごとの匿名ログイン）。調整の ID（推測できない20文字）を知っている人は誰でも見て答えられる
+// - 一覧は取れない（ID を知らないと読めない）
+// - 調整そのものは作るだけ。変更・決定・削除は Cloud Functions（管理用の鍵を確かめる）から行う
+// - 作るときは、画面に出す値（期間・時刻・長さ）の形と大きさを確かめる（中身を HTML に入れても崩れないように）
+// - 答えには書いた端末（device = 匿名ログインの uid）を必ず入れる。履歴は足すだけ
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() { return request.auth != null; }
+    function str(v, max) { return v is string && v.size() <= max; }
+    function isDate(v) { return v is string && v.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$'); }
+    function isTime(v) { return v is string && v.matches('^[0-9]{2}:[0-9]{2}$'); }
+    function dateTs(v) { return timestamp.date(int(v.split('-')[0]), int(v.split('-')[1]), int(v.split('-')[2])); }
+
+    match /polls/{pollId} {
+      allow get: if true;
+      allow list: if false;
+      allow create: if signedIn()
+        && pollId.matches('^[a-z0-9]{20}$')
+        && request.resource.data.keys().hasOnly(['title', 'emoji', 'note', 'from', 'to', 'dayStart', 'dayEnd', 'step',
+             'durations', 'holidays', 'exclude', 'invited', 'decided', 'adminKeyHash', 'createdAt', 'expireAt', 'device'])
+        && request.resource.data.keys().hasAll(['title', 'from', 'to', 'dayStart', 'dayEnd', 'step', 'durations', 'adminKeyHash', 'createdAt', 'expireAt', 'device'])
+        && str(request.resource.data.title, 80) && request.resource.data.title.size() > 0
+        && str(request.resource.data.get('note', ''), 1000)
+        && str(request.resource.data.get('emoji', ''), 16)
+        // 期間は3か月まで（画面が長い期間で重くならないよう）。消す日は期間の終わりから90日（時差の分の1日を足す）
+        && isDate(request.resource.data.from) && isDate(request.resource.data.to)
+        && dateTs(request.resource.data.to) >= dateTs(request.resource.data.from)
+        && dateTs(request.resource.data.to) <= dateTs(request.resource.data.from) + duration.value(91, 'd')
+        && isTime(request.resource.data.dayStart) && isTime(request.resource.data.dayEnd)
+        && request.resource.data.step in [30, 60]
+        && request.resource.data.durations is list && request.resource.data.durations.size() > 0
+        && request.resource.data.durations.hasOnly([60, 120, 180])
+        && request.resource.data.get('holidays', []) is list && request.resource.data.get('holidays', []).size() <= 40
+        && request.resource.data.get('exclude', []) is list && request.resource.data.get('exclude', []).size() <= 200
+        && request.resource.data.get('invited', []) is list && request.resource.data.get('invited', []).size() <= 100
+        && request.resource.data.decided == null
+        && str(request.resource.data.adminKeyHash, 64) && request.resource.data.adminKeyHash.size() == 64
+        && request.resource.data.createdAt == request.time
+        && request.resource.data.expireAt is timestamp
+        && request.resource.data.expireAt <= dateTs(request.resource.data.to) + duration.value(91, 'd')
+        && request.resource.data.device == request.auth.uid;
+      allow update, delete: if false;
+
+      // 場所の空き状況：誰でも読める。書くのは Cloud Functions（setPlaces）が管理用の鍵を確かめてから
+      match /places/{docId} {
+        allow read: if true;
+        allow write: if false;
+      }
+
+      function pollExists() { return exists(/databases/$(database)/documents/polls/$(pollId)); }
+
+      match /people/{personId} {
+        allow read: if true;
+        allow create, update: if signedIn() && pollExists()
+          && request.resource.data.keys().hasOnly(['name', 'required', 'note', 'days', 'updatedAt', 'device'])
+          && str(request.resource.data.name, 40) && request.resource.data.name.size() > 0
+          && str(request.resource.data.get('note', ''), 500)
+          && request.resource.data.days is map && request.resource.data.days.size() <= 100
+          && request.resource.data.updatedAt == request.time
+          && request.resource.data.device == request.auth.uid;
+        allow delete: if false;
+
+        match /log/{logId} {
+          allow read: if true;
+          allow create: if signedIn() && pollExists()
+            && request.resource.data.keys().hasOnly(['at', 'device', 'name', 'dates'])
+            && request.resource.data.at == request.time
+            && request.resource.data.device == request.auth.uid
+            && request.resource.data.dates is list && request.resource.data.dates.size() <= 100;
+          allow update, delete: if false;
+        }
+      }
+    }
+
+    match /{document=**} { allow read, write: if false; }
+  }
+}

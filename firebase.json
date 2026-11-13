@@ -1,0 +1,86 @@
+{
+  "hosting": {
+    "site": "komadori",
+    "public": "public",
+    "ignore": [
+      "firebase.json",
+      "**/.*"
+    ],
+    "cleanUrls": true,
+    "rewrites": [
+      {
+        "source": "/p/**",
+        "function": {
+          "functionId": "pollPage",
+          "region": "asia-northeast1"
+        }
+      },
+      {
+        "source": "/og/**",
+        "function": {
+          "functionId": "ogIcon",
+          "region": "asia-northeast1"
+        }
+      }
+    ],
+    "headers": [
+      {
+        "source": "**",
+        "headers": [
+          {
+            "key": "X-Robots-Tag",
+            "value": "noindex, nofollow"
+          },
+          {
+            "key": "Referrer-Policy",
+            "value": "no-referrer"
+          },
+          {
+            "key": "X-Content-Type-Options",
+            "value": "nosniff"
+          },
+          {
+            "key": "Cache-Control",
+            "value": "no-cache"
+          }
+        ]
+      }
+    ]
+  },
+  "firestore": {
+    "rules": "firestore.rules",
+    "indexes": "firestore.indexes.json"
+  },
+  "emulators": {
+    "auth": {
+      "port": 9109
+    },
+    "firestore": {
+      "port": 8180
+    },
+    "hosting": {
+      "port": 5010
+    },
+    "ui": {
+      "enabled": true,
+      "port": 4010
+    },
+    "functions": {
+      "port": 5011
+    }
+  },
+  "functions": [
+    {
+      "source": "functions",
+      "codebase": "default",
+      "ignore": [
+        "node_modules",
+        ".git",
+        "*.log"
+      ],
+      "predeploy": [
+        "cp \"$PROJECT_DIR/public/p.html\" \"$RESOURCE_DIR/p.html\""
+      ]
+    }
+  ]
+}

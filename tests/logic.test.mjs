@@ -1,0 +1,337 @@
+// 計算のテスト：npm test
+import { test } from "node:test";
+import assert from "node:assert/strict";
+import * as L from "../public/logic.js";
+
+const poll = (over = {}) => ({
+  title: "練習", from: "2026-12-01", to: "2026-12-07", dayStart: "09:00", dayEnd: "23:00",
+  durations: [120], holidays: [], exclude: [], ...over,
+});
+
+test("時刻の読み書き（日をまたぐ 26:00 も）", () => {
+  assert.equal(L.toMin("9:00"), 540);
+  assert.equal(L.toMin("26:00"), 1560);
+  assert.equal(L.toMin("9:75"), null);
+  assert.equal(L.toMin("abc"), null);
+  assert.equal(L.fmtMin(540), "09:00");
+  assert.equal(L.fmtMin(1560), "26:00");
+});
+
+test("時間帯：30分に丸める（開始は切り上げ、終わりは切り捨て）", () => {
+  assert.deepEqual(L.rangesToText(L.parseRanges("13:10-15:50")), ["13:30-15:30"]);
+  assert.deepEqual(L.parseRanges("13:10-13:40"), []);           // 丸めたら何も残らない
+  assert.deepEqual(L.rangesToText(L.parseRanges("22:00-26:00")), ["22:00-26:00"]);
+});
+
+test("時間帯：区切りの記号と複数・重なりをまとめる", () => {
+  assert.deepEqual(L.rangesToText(L.parseRanges("10:00〜12:00 / 11:00~13:00、19:00–21:00")), ["10:00-13:00", "19:00-21:00"]);
+  assert.deepEqual(L.rangesToText(L.parseRanges(["10:00-11:00", "11:00-12:00"])), ["10:00-12:00"]);
+});
+
+test("枠と時間帯の行き来", () => {
+  const s = L.slotSet(L.parseRanges("10:00-11:30"));
+  assert.deepEqual([...s], [600, 630, 660]);
+  assert.deepEqual(L.rangesToText(L.slotsToRanges(new Set([600, 630, 720]))), ["10:00-11:00", "12:00-12:30"]);
+});
+
+test("日付：年のない日付は期間に入る年を選ぶ", () => {
+  assert.equal(L.parseDate("1/5", "2026-12-01", "2027-02-28"), "2027-01-05");
+  assert.equal(L.parseDate("12/24", "2026-12-01", "2027-02-28"), "2026-12-24");
+  assert.equal(L.parseDate("2026/12/5"), "2026-12-05");
+  assert.equal(L.parseDate("2/30", "2026-12-01", "2027-02-28"), null);
+  assert.deepEqual(L.dateRange("2026-12-30", "2027-01-02"), ["2026-12-30", "2026-12-31", "2027-01-01", "2027-01-02"]);
+  assert.equal(L.fmtDay("2026-12-23", ["2026-12-23"]), "12/23(水・祝)");
+});
+
+test("除外：日・曜日・毎日の時間帯・特定の日の時間帯", () => {
+  const p = poll({
+    holidays: ["2026-12-02"],
+    exclude: [
+      { kind: "date", date: "2026-12-01" },
+      { kind: "weekday", weekdays: [4] },                                  // 木（12/3）
+      { kind: "time", start: "09:00", end: "18:00", weekdays: [1, 2, 3, 4, 5], holiday: false },
+      { kind: "range", date: "2026-12-05", start: "18:00", end: "23:00", note: "別のライブ" },
+    ],
+  });
+  assert.equal(L.excludedOn(p, "2026-12-01").all, true);
+  assert.equal(L.excludedOn(p, "2026-12-03").all, true);
+  // 12/2 は祝日なので「平日」の決まりは当てはまらない
+  assert.equal(L.excludedOn(p, "2026-12-02").slots.size, 0);
+  // 12/4（金）は平日の 9-18 が除外
+  assert.equal(L.excludedOn(p, "2026-12-04").slots.has(540), true);
+  assert.equal(L.excludedOn(p, "2026-12-04").slots.has(1080), false);
+  // 12/5（土）は 18-23 だけ。ひとことも出る
+  const sat = L.excludedOn(p, "2026-12-05");
+  assert.equal(sat.slots.has(1080), true);
+  assert.equal(sat.slots.has(1020), false);
+  assert.deepEqual(sat.notes, ["別のライブ"]);
+  assert.deepEqual(L.activeDates(p), ["2026-12-02", "2026-12-04", "2026-12-05", "2026-12-06", "2026-12-07"]);
+});
+
+test("除外の貼り付け", () => {
+  const { items, errors } = L.parseExclusions("12/24\n\n月 水\n平日 9:00-18:00\n土日祝 22:00-23:00\n12/12 18:00-23:00 別のライブ\nなにか", { from: "2026-12-01", to: "2026-12-31" });
+  assert.deepEqual(items, [
+    { kind: "date", date: "2026-12-24" },
+    { kind: "weekday", weekdays: [1, 3] },
+    { kind: "time", start: "09:00", end: "18:00", weekdays: [1, 2, 3, 4, 5], holiday: false },
+    { kind: "time", start: "22:00", end: "23:00", weekdays: [0, 6], holiday: true },
+    { kind: "range", date: "2026-12-12", start: "18:00", end: "23:00", note: "別のライブ" },
+  ]);
+  assert.equal(errors.length, 1);
+  assert.equal(errors[0].line, 7);
+  assert.equal(L.exclusionLabel(items[2]), "平日 09:00-18:00");
+  assert.equal(L.exclusionLabel(items[1]), "毎週 月・水");
+});
+
+test("除外：「平日」だけの行は、祝日以外の平日を丸ごと使わない（土日祝だけで調整）", () => {
+  const { items, errors } = L.parseExclusions("平日\n土日 練習なし", { from: "2026-12-01", to: "2026-12-31" });
+  assert.deepEqual(errors, []);
+  assert.deepEqual(items, [
+    { kind: "days", weekdays: [1, 2, 3, 4, 5], holiday: false },
+    { kind: "days", weekdays: [0, 6], holiday: false, note: "練習なし" },
+  ]);
+  assert.equal(L.exclusionLabel(items[0]), "平日（祝日は除く）");
+  assert.equal(L.exclusionLabel(items[1]), "土日（祝日は除く） 練習なし");
+  // 12/1(火)〜12/7(月)、12/2(水) を祝日にする → 残るのは祝日と土日
+  const p = poll({ holidays: ["2026-12-02"], exclude: [items[0]] });
+  assert.deepEqual(L.activeDates(p), ["2026-12-02", "2026-12-05", "2026-12-06"]);
+  assert.equal(L.excludedOn(p, "2026-12-01").all, true);
+});
+
+test("除外の一覧を貼り付けの形に戻す（読み直すと同じになる）", () => {
+  const text = "12/24 クリスマス\n月 水\n平日\n平日 9:00-18:00\n土日祝 22:00-23:00\n12/12 18:00-23:00 別のライブ";
+  const { items } = L.parseExclusions(text, { from: "2026-12-01", to: "2026-12-31" });
+  const back = L.exclusionsText(items);
+  assert.deepEqual(L.parseExclusions(back, { from: "2026-12-01", to: "2026-12-31" }).items, items);
+});
+
+test("調整の設定の確かめ", () => {
+  assert.deepEqual(L.validatePoll(poll()), []);
+  assert.ok(L.validatePoll(poll({ title: " " })).length);
+  assert.ok(L.validatePoll(poll({ from: "2026-12-10", to: "2026-12-01" })).length);
+  assert.ok(L.validatePoll(poll({ from: "2026-01-01", to: "2026-12-01" })).length);   // 3か月より長い
+  assert.ok(L.validatePoll(poll({ dayStart: "09:10" })).length);
+  assert.ok(L.validatePoll(poll({ durations: [] })).length);
+});
+
+const people = [
+  { name: "アキ", days: { "2026-12-05": { sure: ["13:00-18:00"] }, "2026-12-06": { sure: ["10:00-12:00"] } } },
+  { name: "ベン", days: { "2026-12-05": { sure: ["14:00-17:00"], maybe: ["17:00-19:00"] }, "2026-12-06": { sure: ["10:00-12:00"] } } },
+  { name: "チカ", days: { "2026-12-05": { sure: ["14:00-16:00"], maybe: ["16:00-17:00"] }, "2026-12-06": { ng: true, sure: ["10:00-12:00"] } } },
+];
+
+test("重なりの表：参加できる・調整が必要・参加不可", () => {
+  const g = L.grid(poll(), people);
+  assert.deepEqual(g["2026-12-05"][840].sure, ["アキ", "ベン", "チカ"]);
+  assert.deepEqual(g["2026-12-05"][960].maybe, ["チカ"]);
+  assert.deepEqual(g["2026-12-06"][600].sure, ["アキ", "ベン"]);   // チカは参加不可の日
+});
+
+test("よい枠：全員そろう枠が先、近い枠はまとめる", () => {
+  const w = L.bestWindows(poll(), people, 120);
+  assert.equal(w[0].date, "2026-12-05");
+  assert.equal(L.fmtMin(w[0].start), "14:00");
+  assert.deepEqual(w[0].sure, ["アキ", "ベン", "チカ"]);
+  // 3時間なら、チカは 16-17 が「調整が必要」
+  const w3 = L.bestWindows(poll(), people, 180);
+  assert.equal(L.fmtMin(w3[0].start), "14:00");
+  assert.deepEqual(w3[0].sure, ["アキ", "ベン"]);
+  assert.deepEqual(w3[0].maybe, ["チカ"]);
+  // 同じ日の開始が近い枠は並ばない
+  const same = w.filter(x => x.date === "2026-12-05");
+  for (let i = 1; i < same.length; i++) assert.ok(Math.abs(same[i].start - same[0].start) >= 120);
+});
+
+test("よい枠：除外した時間には出さない（答えは残る）", () => {
+  const p = poll({ exclude: [{ kind: "range", date: "2026-12-05", start: "15:00", end: "16:00" }] });
+  const w = L.bestWindows(p, people, 120).filter(x => x.date === "2026-12-05");
+  for (const x of w) assert.ok(x.end <= 900 || x.start >= 960);
+  assert.deepEqual(people[0].days["2026-12-05"].sure, ["13:00-18:00"]);
+});
+
+test("決まった枠の文面", () => {
+  assert.equal(L.slotLine({ date: "2026-12-05", start: 840, end: 960, title: "バンド練習" }), "2026-12-05 14:00-16:00 バンド練習");
+  assert.equal(L.slotLine({ date: "2026-12-05", start: "13:00", end: "15:00", title: "練習", place: "スタジオA" }), "2026-12-05 13:00-15:00 練習 @スタジオA");
+  assert.equal(L.fmtDuration(90), "1時間30分");
+});
+
+test("1時間刻み：時間帯は1時間に丸める", () => {
+  assert.deepEqual(L.rangesToText(L.parseRanges("13:30-16:30", 60)), ["14:00-16:00"]);
+  assert.deepEqual([...L.slotSet(L.parseRanges("10:00-12:00", 60), 60)], [600, 660]);
+  assert.deepEqual(L.rangesToText(L.slotsToRanges(new Set([600, 660, 780]), 60)), ["10:00-12:00", "13:00-14:00"]);
+});
+
+test("1時間刻み：1日の枠・設定の確かめ", () => {
+  assert.deepEqual(L.daySlots(poll({ step: 60, dayStart: "18:00", dayEnd: "22:00" })), [1080, 1140, 1200, 1260]);
+  assert.equal(L.stepOf({}), 30);
+  assert.equal(L.stepOf({ step: 60 }), 60);
+  assert.deepEqual(L.validatePoll(poll({ step: 60 })), []);
+  assert.ok(L.validatePoll(poll({ step: 60, dayStart: "09:30" })).length);   // 範囲が1時間刻みでない
+  assert.ok(L.validatePoll(poll({ step: 60, durations: [90] })).length);    // 長さが1時間刻みでない
+  assert.ok(L.validatePoll(poll({ step: 15 })).length);
+});
+
+test("1時間刻み：30分の答えは1時間に丸めて数える。よい枠も1時間ごと", () => {
+  const p = poll({ step: 60 });
+  const ppl = [
+    { name: "アキ", days: { "2026-12-05": { sure: ["13:30-18:00"] } } },
+    { name: "ベン", days: { "2026-12-05": { sure: ["14:00-17:30"] } } },
+  ];
+  const g = L.grid(p, ppl);
+  assert.deepEqual(g["2026-12-05"][780].sure, []);            // 13:00 の枠はアキも入らない（13:30から）
+  assert.deepEqual(g["2026-12-05"][840].sure, ["アキ", "ベン"]);
+  assert.equal(g["2026-12-05"][870], undefined);              // 14:30 の枠はない
+  const w = L.bestWindows(p, ppl, 120);
+  assert.equal(L.fmtMin(w[0].start), "14:00");
+  assert.equal(w[0].sure.length, 2);
+  assert.ok(w.every(x => x.start % 60 === 0));
+});
+
+test("除外の時間帯は、少しでもかかる枠を外す", () => {
+  const p = poll({ step: 60, exclude: [{ kind: "range", date: "2026-12-05", start: "18:30", end: "23:00" }] });
+  const ex = L.excludedOn(p, "2026-12-05");
+  assert.equal(ex.slots.has(1020), false);
+  assert.equal(ex.slots.has(1080), true);    // 18:00 の枠は 18:30 からの除外がかかるので外す
+  assert.equal(ex.slots.has(1320), true);
+  assert.equal(L.excludedOn({ ...p, step: 30 }, "2026-12-05").slots.has(1080), false);   // 30分刻みなら 18:00 の枠は残る
+});
+
+test("共有の文面：アイコン・名前・期間・URL", () => {
+  assert.equal(L.shareText({ emoji: "🎸", title: "12月の練習", from: "2026-12-01", to: "2026-12-14", url: "https://komadori.web.app/p/x" }),
+    "🎸 12月の練習\n日程調整です。12/1(火)〜12/14(月)で空いている時間を回答してください\nhttps://komadori.web.app/p/x");
+  assert.equal(L.shareText({ title: "飲み会", from: "2026-12-01", to: "2026-12-01", url: "u" }).split("\n")[0], "飲み会");
+});
+
+test("呼びたい人の貼り付け：* は必須、空行・同じ名前は飛ばす", () => {
+  assert.deepEqual(L.parseInvited("*アキ\nベン\n\n ＊ チカ \nベン"), [
+    { name: "アキ", required: true }, { name: "ベン", required: false }, { name: "チカ", required: true }]);
+  assert.equal(L.invitedText([{ name: "アキ", required: true }, { name: "ベン", required: false }]), "*アキ\nベン");
+});
+
+test("回答の状況：回答した人・まだの人・一覧にいない人・必須", () => {
+  const st = L.answerStatus({ invited: L.parseInvited("*アキ\nベン\nチカ") }, [{ name: "アキ" }, { name: "ダイ" }]);
+  assert.deepEqual(st.answered, ["アキ"]);
+  assert.deepEqual(st.pending, ["ベン", "チカ"]);
+  assert.deepEqual(st.others, ["ダイ"]);
+  assert.deepEqual(st.required, ["アキ"]);
+  assert.equal(st.invited, 3);
+});
+
+test("よい枠：必須の人が来られない枠は出さない（調整が必要なら出す）", () => {
+  const w = L.bestWindows(poll(), people, 120, { required: ["チカ"] });
+  for (const x of w) assert.ok(x.sure.includes("チカ") || x.maybe.includes("チカ"));
+  assert.ok(w.length > 0);
+  assert.equal(L.bestWindows(poll(), people, 120, { required: ["いない人"] }).length, 0);
+});
+
+test("よい枠：最低人数より少ない枠は出さない", () => {
+  const w = L.bestWindows(poll(), people, 120, { min: 3 });
+  assert.ok(w.length > 0);
+  assert.ok(w.every(x => x.sure.length >= 3));
+  assert.equal(L.bestWindows(poll(), people, 120, { min: 4 }).length, 0);
+});
+
+const P = { from: "2026-12-01", to: "2026-12-31", step: 30 };
+
+test("空き状況 1：1行に1つ（タブ）・メモ・URL・丸め", () => {
+  const r = L.parseAvailability("スタジオA 新宿 32帖\t2026-12-05\t13:10-18:00, 19:00-22:00\n居酒屋まる\t12/5\t18:00-23:00\t4〜8人\thttps://example.com/m\nスタジオA 新宿 32帖\t12/6\t10:00-12:00", P);
+  assert.equal(r.format, "lines");
+  assert.deepEqual(r.errors, []);
+  assert.deepEqual(r.places.map(p => p.name), ["スタジオA 新宿 32帖", "居酒屋まる"]);
+  assert.equal(r.places[0].note, "32帖");
+  assert.equal(r.places[1].note, "4〜8人");
+  assert.equal(r.places[1].url, "https://example.com/m");
+  assert.deepEqual(r.slots.find(s => s.date === "2026-12-05" && s.place === "スタジオA 新宿 32帖").free, ["13:30-18:00", "19:00-22:00"]);
+});
+
+test("空き状況 1：タブがなければ「場所 日付 時間帯」を空白で。読めない行は行番号つきで飛ばす", () => {
+  const r = L.parseAvailability("会議室B 12/7 9:00-12:00 / 13:00-17:00 10人\nなにか\n会議室B 12/40 9:00-10:00", P);
+  assert.deepEqual(r.slots, [{ place: "会議室B", date: "2026-12-07", free: ["09:00-12:00", "13:00-17:00"] }]);
+  assert.equal(r.places[0].note, "10人");
+  assert.deepEqual(r.errors.map(e => e.line), [2, 3]);
+});
+
+test("空き状況 2：表（縦長）。見出しで列を見分ける（順番は自由・カンマ区切りも）", () => {
+  const r = L.parseAvailability("日付,場所,空き,グループ\n2026/12/5,スタジオA,13:00-18:00／19:00-22:00,新宿\n12/6,スタジオB,10:00-12:00,代々木", P);
+  assert.equal(r.format, "long");
+  assert.deepEqual(r.places.map(p => [p.name, p.group]), [["スタジオA", "新宿"], ["スタジオB", "代々木"]]);
+  assert.deepEqual(r.slots[0].free, ["13:00-18:00", "19:00-22:00"]);
+});
+
+test("空き状況 3：日付×場所（横長）。グループ・URL の行、空きなしの印", () => {
+  const r = L.parseAvailability("日付\tスタジオA 32帖\tスタジオB 20帖\nグループ\t新宿\t代々木\nURL\thttps://a\thttps://b\n2026-12-05\t13:00-18:00 / 19:00-22:00\t受付前\n2026-12-06\t10:00-12:00\t×", P);
+  assert.equal(r.format, "wide");
+  assert.deepEqual(r.places.map(p => [p.name, p.group, p.url, p.note]), [["スタジオA 32帖", "新宿", "https://a", "32帖"], ["スタジオB 20帖", "代々木", "https://b", "20帖"]]);
+  assert.deepEqual(r.slots.filter(s => s.free.length).map(s => [s.place, s.date]), [["スタジオA 32帖", "2026-12-05"], ["スタジオA 32帖", "2026-12-06"]]);
+  assert.deepEqual(r.errors, []);
+  const bad = L.parseAvailability("日付\tA\tB\n12/40\t10:00-12:00\t10:00-12:00", P);
+  assert.equal(bad.errors.length, 1);   // 読めない日付は行ごとに1回だけ知らせる
+});
+
+test("空き状況 3：avail_sheet.json（1行目が「日付」の2次元配列）も読める", () => {
+  const r = L.parseAvailability(JSON.stringify([["日付", "ノア Ast（30帖）"], ["2026-12-05", "13:00-15:00"]]), P);
+  assert.equal(r.format, "wide");
+  assert.deepEqual(r.slots, [{ place: "ノア Ast（30帖）", date: "2026-12-05", free: ["13:00-15:00"] }]);
+});
+
+test("空き状況 4：JSON。place は id でも name でも。asOf を残す。期間の外は使わない", () => {
+  const json = { format: "availability", version: 1, asOf: "2026-11-11T09:00:00+09:00",
+    places: [{ id: "a32", name: "スタジオA 32帖", group: "新宿", note: "ドラム2台", url: "https://a" }],
+    slots: [{ place: "a32", date: "2026-12-05", free: ["13:00-18:00"] }, { place: "スタジオA 32帖", date: "2026-12-06", free: ["10:00-12:00"] }, { place: "a32", date: "2027-02-01", free: ["10:00-12:00"] }] };
+  const r = L.parseAvailability(JSON.stringify(json), P);
+  assert.equal(r.asOf, "2026-11-11T09:00:00+09:00");
+  assert.equal(r.places.length, 1);
+  assert.equal(r.places[0].note, "ドラム2台");
+  assert.deepEqual(r.slots.map(s => s.date), ["2026-12-05", "2026-12-06"]);
+});
+
+test("空き状況：日をまたぐ 22:00-26:00、1時間刻みでの丸め", () => {
+  const r = L.parseAvailability("スタジオA\t12/5\t22:00-26:00\nスタジオA\t12/6\t13:30-16:30", { ...P, step: 60 });
+  assert.deepEqual(r.slots.map(s => s.free), [["22:00-26:00"], ["14:00-16:00"]]);
+});
+
+test("空いている場所：枠のあいだずっと空いている場所だけ。しぼり込み", () => {
+  const a = L.parseAvailability("日付\tA\tB\nグループ\t新宿\t代々木\nメモ\t32帖 ドラム2台\t20帖\n2026-12-05\t13:00-18:00\t14:00-15:00", P);
+  assert.deepEqual(L.freePlaces(a, "2026-12-05", 840, 960).map(p => p.id), ["A"]);
+  assert.deepEqual(L.freePlaces(a, "2026-12-05", 840, 900).map(p => p.id), ["A", "B"]);
+  assert.deepEqual([...L.freeSlotsOn(a, "2026-12-05")].sort((x, y) => x - y).slice(0, 2), [780, 810]);
+  assert.deepEqual(L.filterPlaces(a, { group: "代々木" }).places.map(p => p.id), ["B"]);
+  assert.deepEqual(L.filterPlaces(a, { q: "ドラム" }).places.map(p => p.id), ["A"]);
+});
+
+test("カレンダー：Google カレンダーのリンク（日本時間・場所・日またぎ）", () => {
+  const u = new URL(L.googleCalendarUrl({ title: "練習", date: "2026-12-05", start: 840, end: 960, place: "スタジオA" }));
+  assert.equal(u.searchParams.get("dates"), "20261205T140000/20261205T160000");
+  assert.equal(u.searchParams.get("ctz"), "Asia/Tokyo");
+  assert.equal(u.searchParams.get("location"), "スタジオA");
+  const late = new URL(L.googleCalendarUrl({ title: "深夜", date: "2026-12-31", start: "23:00", end: "26:00" }));
+  assert.equal(late.searchParams.get("dates"), "20261231T230000/20270101T020000");
+});
+
+test("カレンダー：.ics（文字の逃がし・UID）", () => {
+  const t = L.icsText({ title: "練習, 本番前", date: "2026-12-05", start: 840, end: 960, place: "A;B", uid: "abc" });
+  assert.match(t, /DTSTART;TZID=Asia\/Tokyo:20261205T140000\r\n/);
+  assert.match(t, /DTEND;TZID=Asia\/Tokyo:20261205T160000/);
+  assert.match(t, /SUMMARY:練習\\, 本番前/);
+  assert.match(t, /LOCATION:A\;B/);
+  assert.match(t, /UID:abc@komadori.web.app/);
+  assert.match(t, /BEGIN:VTIMEZONE\r\nTZID:Asia\/Tokyo/);
+});
+
+test("決まった枠の確かめ", () => {
+  const p = poll();
+  assert.equal(L.validateDecided(p, { date: "2026-12-05", start: 840, end: 960 }), "");
+  assert.ok(L.validateDecided(p, { date: "2027-01-05", start: 840, end: 960 }));
+  assert.ok(L.validateDecided(p, { date: "2026-12-05", start: 845, end: 960 }));
+  assert.ok(L.validateDecided(p, { date: "2026-12-05", start: 1320, end: 1440 }));   // 23:00 より後
+});
+
+test("回答の進み具合：参加不可も回答に数え、使わない日は数えない", () => {
+  const p = poll({ exclude: [{ kind: "date", date: "2026-12-07" }] });   // 12/1〜12/6 の6日
+  const ppl = [
+    { name: "アキ", days: Object.fromEntries(L.dateRange("2026-12-01", "2026-12-06").map(d => [d, { sure: ["10:00-12:00"] }])) },
+    { name: "ベン", days: { "2026-12-01": { ng: true }, "2026-12-02": { maybe: ["10:00-11:00"] }, "2026-12-03": { sure: [], maybe: [], note: "コメントだけ" } } },
+  ];
+  assert.deepEqual(L.progress(p, ppl), [{ name: "アキ", left: 0, total: 6 }, { name: "ベン", left: 4, total: 6 }]);
+  assert.equal(L.answeredOn(ppl[1].days, "2026-12-03"), false);   // コメントだけは回答に数えない
+});
