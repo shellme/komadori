@@ -175,6 +175,23 @@ test("よい枠：除外した時間には出さない（答えは残る）", ()
   assert.deepEqual(people[0].days["2026-12-05"].sure, ["13:00-18:00"]);
 });
 
+test("よい枠：人数が同じなら、空いている場所が多い枠を先に（場所がない枠を後に）", () => {
+  // 4人とも 10〜22時ずっと参加できる日。人数だけで選ぶと 10-12・12-14・14-16 と早い順に並んでしまう
+  const p = poll({ step: 60, dayStart: "10:00", dayEnd: "22:00" });
+  const all = ["アキ", "ベン", "チカ", "ダイ"].map(name => ({ name, days: { "2026-12-05": { sure: ["10:00-22:00"] } } }));
+  const place = (id, ...free) => ({ id, free });
+  const ps = [place("A", "10:00-13:00"), place("B", "20:00-22:00"), place("C", "10:00-14:00", "17:00-22:00"),
+    place("D", "20:00-22:00"), place("E", "19:00-22:00"), place("F", "10:00-12:00", "20:00-22:00")];
+  const avail = { places: ps.map(x => ({ id: x.id, name: x.id })), slots: ps.map(x => ({ place: x.id, date: "2026-12-05", free: x.free })) };
+  const w = L.bestWindows(p, all, 120, { avail }).slice(0, 3);
+  assert.deepEqual(w.map(x => [L.fmtMin(x.start), x.places]), [["20:00", 5], ["10:00", 3], ["12:00", 1]]);
+  // 場所を貼っていなければ、前と同じに早い順
+  assert.deepEqual(L.bestWindows(p, all, 120).slice(0, 3).map(x => L.fmtMin(x.start)), ["10:00", "12:00", "14:00"]);
+  // 人数が多い枠は、場所がなくても先（場所は人数が同じときだけ比べる）
+  const fewer = [...all.slice(0, 3), { name: "ダイ", days: { "2026-12-05": { sure: ["10:00-12:00"] } } }];
+  assert.equal(L.fmtMin(L.bestWindows(p, fewer, 120, { avail })[0].start), "10:00");
+});
+
 test("決まった枠の文面", () => {
   assert.equal(L.slotLine({ date: "2026-12-05", start: 840, end: 960, title: "バンド練習" }), "2026-12-05 14:00-16:00 バンド練習");
   assert.equal(L.slotLine({ date: "2026-12-05", start: "13:00", end: "15:00", title: "練習", place: "スタジオA" }), "2026-12-05 13:00-15:00 練習 @スタジオA");
