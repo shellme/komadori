@@ -76,7 +76,8 @@ async function load() {
 
 function renderHeader(isAdmin) {
   $("#title").textContent = `${poll.emoji ? poll.emoji + " " : ""}${poll.title}`; drawEmoji($("#title"));
-  $("#meta").textContent = `${L.fmtDay(poll.from, poll.holidays)}〜${L.fmtDay(poll.to, poll.holidays)}・${poll.dayStart}〜${poll.dayEnd}の間で${STEP() === 60 ? "1時間" : "30分"}刻み・${poll.durations.map(L.fmtDuration).join("／")}`;
+  const dayType = poll.dayType && poll.dayType !== "all" ? `（${L.DAY_TYPES[poll.dayType]?.label || ""}）` : "";
+  $("#meta").textContent = `${L.fmtDay(poll.from, poll.holidays)}〜${L.fmtDay(poll.to, poll.holidays)}${dayType}・${poll.dayStart}〜${poll.dayEnd}の間で${STEP() === 60 ? "1時間" : "30分"}刻み・${poll.durations.map(L.fmtDuration).join("／")}`;
   document.title = `${poll.title}｜コマドリ`;   // アイコンはタブの印（favicon）に出るので、題名には入れない
   setFavicon(poll.emoji);
   $("#note").textContent = poll.note || ""; $("#note").hidden = !poll.note;
@@ -242,10 +243,15 @@ function syncFilter() {
   const ms = months();
   if (view.month !== "all" && !ms.includes(view.month)) view.month = "all";
   if (!Array.isArray(view.wd)) view.wd = [];
+  // 曜日のボタンは、その曜日の日（祝日を除く）・祝日があるものだけ出す（使わない日に当たる曜日は押しても空振りするため）
+  const active = L.activeDates(poll), hol = poll.holidays || [];
+  const wds = WDS.filter(([v]) => v === "h" ? active.some(d => hol.includes(d)) : active.some(d => !hol.includes(d) && String(L.weekdayOf(d)) === v));
+  view.wd = view.wd.filter(v => wds.some(([x]) => x === v));
   $("#fMonth").innerHTML = `<option value="all">すべての月</option>` + ms.map(m => `<option value="${m}">${monthLabel(m)}</option>`).join("");
   $("#fMonth").value = view.month;
   $("#fMonth").hidden = ms.length <= 1;   // 1か月だけなら月は選ばない
-  $("#fWd").innerHTML = WDS.map(([v, l]) => `<button type="button" class="wd" data-wd="${v}" aria-pressed="${view.wd.includes(v)}">${l}</button>`).join("");
+  $("#fWd").hidden = wds.length <= 1;
+  $("#fWd").innerHTML = wds.map(([v, l]) => `<button type="button" class="wd" data-wd="${v}" aria-pressed="${view.wd.includes(v)}">${l}</button>`).join("");
   $("#inTodo").checked = view.f === "todo";
   store.set(viewKey, { f: view.f, month: view.month, wd: view.wd });
 }
@@ -657,6 +663,7 @@ function renderPlaceFilters() {
 $("#openEdit").addEventListener("click", () => {
   $("#edFrom").value = poll.from; $("#edTo").value = poll.to;
   document.querySelector(`input[name="edStep"][value="${STEP()}"]`).checked = true;
+  document.querySelector(`input[name="edDayType"][value="${L.DAY_TYPES[poll.dayType] ? poll.dayType : "all"}"]`).checked = true;
   buildEdTimes(poll.dayStart, poll.dayEnd);
   $("#edTitle").value = poll.title; $("#edEmoji").value = poll.emoji || ""; $("#edNote").value = poll.note || "";
   $("#edInvited").value = L.invitedText(poll.invited); $("#edExclude").value = L.exclusionsText(poll.exclude);
@@ -703,6 +710,7 @@ $("#edSave").addEventListener("click", async () => {
     title: $("#edTitle").value.trim(), emoji: firstEmoji($("#edEmoji").value), note: $("#edNote").value.trim(),
     durations: [...document.querySelectorAll("#edDur input:checked")].map(i => +i.value),
     invited: L.parseInvited($("#edInvited").value), exclude: ex.items,
+    dayType: document.querySelector('input[name="edDayType"]:checked')?.value || "all",
   };
   const errs = [];
   // 期間：変えたときだけ送る

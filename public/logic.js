@@ -93,37 +93,82 @@ export function fmtDay(iso, holidays = []) {
   return `${d.getMonth() + 1}/${d.getDate()}(${WD[d.getDay()]}${holidays.includes(iso) ? "・祝" : ""})`;
 }
 
-// ---------- 除外 ----------
-const WEEKDAY_SETS = {
-  "毎日": { weekdays: [0, 1, 2, 3, 4, 5, 6], holiday: true },
-  "平日": { weekdays: [1, 2, 3, 4, 5], holiday: false },
-  "土日": { weekdays: [0, 6], holiday: false },
-  "土日祝": { weekdays: [0, 6], holiday: true },
+// ---------- 除外（使わない日・時間帯） ----------
+// 除外の決まりは1つの形：{ kind: "rule", from?, to?, weekdays?, holiday?, start?, end?, note? }
+//   いつ  ：from〜to（ISO の日付。なければ期間全体。1日だけなら from と to が同じ）
+//   どの日：weekdays（曜日の配列。なければ毎日）と holiday（祝日の扱い）
+//           "skip" 祝日には当てはまらない（平日・土日・月 水 など）
+//           "add"  祝日にも当てはまる（土日祝・月 水 祝・祝）
+//           "any"  祝日かどうかを見ない（前の「月 水」の読み方。古い日程調整のため）
+//   何時  ：start〜end（なければ1日まるごと）
+// 前の形（date・weekday・days・time・range）は normRule で同じ形に直して読む。新しく書くのは rule だけ
+const ALL_WEEKDAYS = [0, 1, 2, 3, 4, 5, 6];
+const DAY_SETS = {
+  "平日": { weekdays: [1, 2, 3, 4, 5], holiday: "skip" },
+  "土日": { weekdays: [0, 6], holiday: "skip" },
+  "土日祝": { weekdays: [0, 6], holiday: "add" },
+  "毎日": {},
 };
-export const DAY_SETS = Object.keys(WEEKDAY_SETS);
+/** 「対象の日」（poll.dayType）。選んだ日以外を除外の決まりとして足す */
+export const DAY_TYPES = {
+  all: { label: "すべての日" },
+  weekend: { label: "土日祝だけ", rule: { kind: "rule", ...DAY_SETS["平日"] } },
+  weekday: { label: "平日だけ", rule: { kind: "rule", ...DAY_SETS["土日祝"] } },
+};
 
-/** 「平日」などの決まり（kind: days・time）がその日に当てはまるか。祝日は、holiday:true の決まりにだけ当てはまる（土日と同じに数える） */
-function daySetHits(rule, iso, holidays) {
-  if (holidays.includes(iso)) return !!rule.holiday;
-  return (rule.weekdays || []).includes(weekdayOf(iso));
+/** 除外1つを rule の形に直す（前の形も読む） */
+export function normRule(x) {
+  const note = x?.note ? { note: x.note } : {};
+  const time = x?.start && x?.end ? { start: x.start, end: x.end } : {};
+  const set = x => x.weekdays?.length === 7 && x.holiday ? {} : { weekdays: x.weekdays || [], holiday: x.holiday ? "add" : "skip" };
+  switch (x?.kind) {
+    case "rule": return x;
+    case "date": return { kind: "rule", from: x.date, to: x.date, ...note };
+    case "range": return { kind: "rule", from: x.date, to: x.date, ...time, ...note };
+    case "weekday": return { kind: "rule", weekdays: x.weekdays || [], holiday: "any", ...note };
+    case "days": return { kind: "rule", ...set(x), ...note };
+    case "time": return { kind: "rule", ...set(x), ...time, ...note };
+    default: return { kind: "rule", from: "9999-12-31", to: "9999-12-31" };   // 読めないものはどの日にも当てはめない
+  }
 }
+
+/** 決まりがその日に当てはまるか */
+function ruleHits(r, iso, holidays) {
+  if ((r.from && iso < r.from) || (r.to && iso > r.to)) return false;
+  if (!r.weekdays) return true;
+  if (holidays.includes(iso) && r.holiday !== "any") return r.holiday === "add";
+  return r.weekdays.includes(weekdayOf(iso));
+}
+
+/** その調整の除外の決まりの一覧（「対象の日」の分を先に） */
+const rulesOf = poll => [...(DAY_TYPES[poll.dayType]?.rule ? [DAY_TYPES[poll.dayType].rule] : []), ...(poll.exclude || []).map(normRule)];
 
 /** その日の除外：{ all: 1日まるごと除外か, slots: 除外する枠の Set, notes: ひとこと } */
 export function excludedOn(poll, iso) {
   const holidays = poll.holidays || [], step = stepOf(poll);
   const res = { all: false, slots: new Set(), notes: [] };
-  for (const x of poll.exclude || []) {
-    if (x.kind === "date" && x.date === iso) { res.all = true; if (x.note) res.notes.push(x.note); }
-    else if (x.kind === "weekday" && (x.weekdays || []).includes(weekdayOf(iso))) res.all = true;
-    else if (x.kind === "days" && daySetHits(x, iso, holidays)) { res.all = true; if (x.note) res.notes.push(x.note); }
-    else if ((x.kind === "time" && daySetHits(x, iso, holidays)) || (x.kind === "range" && x.date === iso)) {
-      // 使えない時間なので、少しでもかかる枠は外す（外側に丸める）
-      const xs = toMin(x.start), xe = toMin(x.end);
-      if (xs != null && xe != null) for (let m = Math.floor(xs / step) * step; m < xe; m += step) res.slots.add(m);
-      if (x.note) res.notes.push(x.note);
-    }
+  for (const r of rulesOf(poll)) {
+    if (!ruleHits(r, iso, holidays)) continue;
+    if (r.note) res.notes.push(r.note);
+    const xs = toMin(r.start), xe = toMin(r.end);
+    if (xs == null || xe == null) { res.all = true; continue; }
+    // 使えない時間なので、少しでもかかる枠は外す（外側に丸める）
+    for (let m = Math.floor(xs / step) * step; m < xe; m += step) res.slots.add(m);
   }
   return res;
+}
+
+// 貼り付けの1行：［いつ］［どの日］［何時］［ひとこと］の順。いつ・どの日のどちらかは要る
+const DAY_WORD = /^([日月火水木金土]曜?日?|祝日?)$/;
+const DATE_PART = String.raw`(?:\d{4}[-/.])?\d{1,2}[/月]\d{1,2}日?`;
+const DATE_SPAN = new RegExp(String.raw`^(${DATE_PART})\s*[-〜~–ー－]\s*(${DATE_PART})(?=\s|$)`);
+
+/** "1月" -> その月の初めと終わり。年は期間 [from, to] にかかる年を選ぶ */
+function monthSpan(mm, from, to) {
+  const y0 = from ? +from.slice(0, 4) : new Date().getFullYear();
+  const span = y => { const a = `${y}-${pad(mm)}-01`; return [a, addDays(isoOf(new Date(y, mm, 1)), -1)]; };
+  for (const y of [y0, y0 + 1]) { const [a, b] = span(y); if ((!to || a <= to) && (!from || b >= from)) return [a, b]; }
+  return span(y0);
 }
 
 /** 除外の貼り付け（1行に1つ）を読む -> { items, errors: [{ line, text, reason }] } */
@@ -133,67 +178,70 @@ export function parseExclusions(text, { from, to } = {}) {
     const line = raw.trim();
     if (!line) return;
     const err = reason => errors.push({ line: i + 1, text: line, reason });
+    const r = { kind: "rule" };
     const ranges = parseRanges(line);
-    const words = line.replace(RANGE_RE, " ").split(/[\s　]+/).filter(Boolean);
-    const first = words[0] || "";
-    if (ranges.length) {
-      const [s, e] = ranges[0];
-      const t = { start: fmtMin(s), end: fmtMin(e) };
-      if (WEEKDAY_SETS[first]) {
-        const note = words.slice(1).join(" ");
-        items.push({ kind: "time", ...t, ...WEEKDAY_SETS[first], ...(note ? { note } : {}) });
-      } else {
-        const date = parseDate(first, from, to);
-        if (!date) return err("日付か「平日・土日・土日祝・毎日」が読めません");
-        const note = words.slice(1).join(" ");
-        items.push({ kind: "range", date, ...t, ...(note ? { note } : {}) });
+    if (ranges.length) Object.assign(r, { start: fmtMin(ranges[0][0]), end: fmtMin(ranges[0][1]) });
+    let rest = line.replace(RANGE_RE, " ").trim();
+    // いつ：日付〜日付／○月／日付
+    const span = DATE_SPAN.exec(rest);
+    if (span) {
+      const a = parseDate(span[1].replace(/日$/, ""), from, to), b = parseDate(span[2].replace(/日$/, ""), from, to);
+      if (!a || !b) return err("日付が読めません");
+      if (a > b) return err("日付の順番が逆です");
+      Object.assign(r, { from: a, to: b }); rest = rest.slice(span[0].length);
+    }
+    let words = rest.split(/[\s　]+/).filter(Boolean);
+    if (!span && words.length) {
+      const mon = /^(\d{1,2})月$/.exec(words[0]), date = !mon && parseDate(words[0], from, to);
+      if (mon && +mon[1] >= 1 && +mon[1] <= 12) { const [a, b] = monthSpan(+mon[1], from, to); Object.assign(r, { from: a, to: b }); words = words.slice(1); }
+      else if (date) { Object.assign(r, { from: date, to: date }); words = words.slice(1); }
+    }
+    // どの日：平日・土日・土日祝・毎日、または曜日（と祝）を並べたもの
+    if (words.length && words[0] in DAY_SETS) { Object.assign(r, DAY_SETS[words[0]]); words = words.slice(1); }
+    else {
+      const ds = []; while (words.length && DAY_WORD.test(words[0])) ds.push(words.shift());
+      if (ds.length) {
+        const add = ds.some(w => w.startsWith("祝"));
+        Object.assign(r, { weekdays: [...new Set(ds.filter(w => !w.startsWith("祝")).map(w => WD.indexOf(w[0])))].sort(), holiday: add ? "add" : "skip" });
+      } else if (!r.from) {
+        return err("読めません（例：12/24、1/1-1/15、1月 平日、月 水、平日 9:00-18:00、12/12 18:00-23:00 別のライブ）");
       }
-      return;
     }
-    if (WEEKDAY_SETS[first]) {   // 「平日」だけ → 祝日以外の平日を丸ごと使わない（土日祝だけで調整したいとき）
-      const note = words.slice(1).join(" ");
-      items.push({ kind: "days", ...WEEKDAY_SETS[first], ...(note ? { note } : {}) });
-      return;
-    }
-    if (words.length && words.every(w => /^[日月火水木金土]曜?日?$/.test(w))) {
-      items.push({ kind: "weekday", weekdays: words.map(w => WD.indexOf(w[0])).sort() });
-      return;
-    }
-    const date = parseDate(first, from, to);
-    if (date) { const note = words.slice(1).join(" "); items.push({ kind: "date", date, ...(note ? { note } : {}) }); return; }
-    err("読めません（例：12/24、月 水、平日、平日 9:00-18:00、12/12 18:00-23:00 別のライブ）");
+    if (words.length) r.note = words.join(" ");
+    items.push(r);
   });
   return { items, errors };
 }
 
-/** kind: days・time の曜日の組を「平日」などの名前に（どれにも当たらなければ「月・水・祝」の形） */
-function daySetName(x) {
-  return Object.entries(WEEKDAY_SETS).find(([, v]) => v.holiday === !!x.holiday && v.weekdays.join() === (x.weekdays || []).join())?.[0]
-    || (x.weekdays || []).map(w => WD[w]).join("・") + (x.holiday ? "・祝" : "");
+const md = d => `${+d.slice(5, 7)}/${+d.slice(8)}`;
+/** 丸ごと1か月か */
+const wholeMonth = r => r.from?.slice(8) === "01" && r.to === addDays(isoOf(new Date(+r.from.slice(0, 4), +r.from.slice(5, 7), 1)), -1);
+/** いつ（期間がなければ ""） */
+function whenText(r, day = md) {
+  if (!r.from) return "";
+  if (r.from === r.to) return day(r.from);
+  if (wholeMonth(r)) return `${+r.from.slice(5, 7)}月`;
+  return `${day(r.from)}-${day(r.to)}`;
+}
+/** どの日（毎日なら ""）。sep は曜日の区切り */
+function daysText(r, sep) {
+  if (!r.weekdays) return "";
+  const named = Object.entries(DAY_SETS).find(([, v]) => v.weekdays && v.holiday === r.holiday && v.weekdays.join() === r.weekdays.join())?.[0];
+  return named || [...r.weekdays.map(w => WD[w]), ...(r.holiday === "add" ? ["祝"] : [])].join(sep);
 }
 
-/** 除外1つを人が読む形に */
+/** 除外1つを人が読む形に（例：「1月 平日（祝日は除く）」「12/12(土) 18:00-23:00 別のライブ」） */
 export function exclusionLabel(x, holidays = []) {
-  const note = x.note ? ` ${x.note}` : "";
-  if (x.kind === "date") return `${fmtDay(x.date, holidays)}${note}`;
-  if (x.kind === "weekday") return `毎週 ${x.weekdays.map(w => WD[w]).join("・")}`;
-  if (x.kind === "days") return `${daySetName(x)}${x.holiday ? "" : "（祝日は除く）"}${note}`;
-  if (x.kind === "range") return `${fmtDay(x.date, holidays)} ${x.start}-${x.end}${note}`;
-  if (x.kind === "time") return `${daySetName(x)} ${x.start}-${x.end}${note}`;
-  return "";
+  const r = normRule(x);
+  const days = daysText(r, "・") || (r.from ? "" : "毎日");
+  // 平日を含む決まりは、祝日にかからないことを書いておく（「月 水」と書いて祝日の月曜が残るのに気づけるように）
+  const skipNote = r.holiday === "skip" && r.weekdays?.some(w => w >= 1 && w <= 5) ? "（祝日は除く）" : "";
+  return [whenText(r, d => fmtDay(d, holidays)).replace(/-(?=\d+\/)/, "〜"), days + skipNote, r.start ? `${r.start}-${r.end}` : "", r.note || ""].filter(Boolean).join(" ");
 }
 
 /** 除外の一覧を、貼り付けの形（1行に1つ）に戻す。parseExclusions の逆。設定の編集の欄に入れる */
 export function exclusionsText(list) {
-  return (list || []).map(x => {
-    const note = x.note ? ` ${x.note}` : "";
-    const md = d => `${+d.slice(5, 7)}/${+d.slice(8)}`;
-    if (x.kind === "date") return md(x.date) + note;
-    if (x.kind === "weekday") return x.weekdays.map(w => WD[w]).join(" ");
-    if (x.kind === "days") return daySetName(x) + note;
-    if (x.kind === "range") return `${md(x.date)} ${x.start}-${x.end}${note}`;
-    return `${daySetName(x)} ${x.start}-${x.end}${note}`;
-  }).join("\n");
+  return (list || []).map(normRule).map(r => [whenText(r), daysText(r, " ") || (r.from ? "" : "毎日"), r.start ? `${r.start}-${r.end}` : "", r.note || ""].filter(Boolean).join(" ")).join("\n");
 }
 
 // ---------- 調整 ----------

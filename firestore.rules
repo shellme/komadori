@@ -19,7 +19,7 @@ service cloud.firestore {
       allow create: if signedIn()
         && pollId.matches('^[a-z0-9]{20}$')
         && request.resource.data.keys().hasOnly(['title', 'emoji', 'note', 'from', 'to', 'dayStart', 'dayEnd', 'step',
-             'durations', 'holidays', 'exclude', 'invited', 'decided', 'adminKeyHash', 'createdAt', 'expireAt', 'device'])
+             'durations', 'holidays', 'dayType', 'exclude', 'invited', 'decided', 'adminKeyHash', 'createdAt', 'expireAt', 'device'])
         && request.resource.data.keys().hasAll(['title', 'from', 'to', 'dayStart', 'dayEnd', 'step', 'durations', 'adminKeyHash', 'createdAt', 'expireAt', 'device'])
         && str(request.resource.data.title, 80) && request.resource.data.title.size() > 0
         && str(request.resource.data.get('note', ''), 1000)
@@ -33,6 +33,7 @@ service cloud.firestore {
         && request.resource.data.durations is list && request.resource.data.durations.size() > 0
         && request.resource.data.durations.hasOnly([60, 120, 180])
         && request.resource.data.get('holidays', []) is list && request.resource.data.get('holidays', []).size() <= 40
+        && request.resource.data.get('dayType', 'all') in ['all', 'weekend', 'weekday']
         && request.resource.data.get('exclude', []) is list && request.resource.data.get('exclude', []).size() <= 200
         && request.resource.data.get('invited', []) is list && request.resource.data.get('invited', []).size() <= 100
         && request.resource.data.decided == null

@@ -50,6 +50,15 @@
       <div class="row"><input type="date" id="from" aria-label="期間のはじめ"><span class="tilde">〜</span><input type="date" id="to" aria-label="期間のおわり"></div>
     </div>
     <div class="field">
+      <span class="label">対象の日</span>
+      <div class="radios row-radios" id="dayType" role="radiogroup" aria-label="対象の日">
+        <label><input type="radio" name="dayType" value="all" checked>すべての日</label>
+        <label><input type="radio" name="dayType" value="weekend">土日祝だけ</label>
+        <label><input type="radio" name="dayType" value="weekday">平日だけ</label>
+      </div>
+      <p class="info">月によって変えたいときなどは、下の「使わない日・時間帯」に書けます（例：1月 平日）</p>
+    </div>
+    <div class="field">
       <span class="label">時間の刻み</span>
       <div class="radios row-radios" id="step" role="radiogroup" aria-label="時間の刻み">
         <label><input type="radio" name="step" value="30">30分</label>
@@ -67,8 +76,8 @@
     </div>
     <div class="field">
       <label for="exclude">使わない日・時間帯 <span class="sub">任意・1行に1つ</span></label>
-      <textarea id="exclude" placeholder="例：&#10;12/24&#10;月 水&#10;平日 9:00-18:00&#10;12/12 18:00-23:00 別のライブ"></textarea>
-      <p class="info">日付／曜日／「平日・土日・土日祝・毎日」（その日を丸ごと）／それに時間を付ける／日付＋時間とひとこと、の書き方ができます。祝日は土日と同じに数えます（「平日」とだけ書くと土日祝だけで調整できます）</p>
+      <textarea id="exclude" placeholder="例：&#10;12/24 クリスマス&#10;1/1-1/5&#10;1月 平日&#10;月 水&#10;平日 9:00-18:00&#10;12/12 18:00-23:00 別のライブ"></textarea>
+      <p class="info">1行に「いつ（日付・1/1-1/5・1月）」「どの日（平日・土日・月 水 など）」「何時（9:00-18:00）」「ひとこと」を、要るものだけ並べます。曜日で書いた日は祝日にかかりません（祝日も外すときは「祝」を足す）</p>
       <ul class="plain sub" id="excludePreview"></ul>
       <div class="errors" id="excludeErrors"></div>
     </div>

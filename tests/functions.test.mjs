@@ -68,6 +68,12 @@ test("updatePoll：名前・呼びたい人・使わない日を変える。期�
   await call("updatePoll")({ pollId: id, key: KEY, patch: { title: "新しい名前", invited: [{ name: "アキ", required: true }], exclude: [{ kind: "date", date: "2026-12-24" }] } });
   const p = (await getDoc(doc(db, "polls", id))).data();
   assert.equal(p.title, "新しい名前");
+  await call("updatePoll")({ pollId: id, key: KEY, patch: { dayType: "weekend", exclude: [{ kind: "rule", from: "2026-12-01", to: "2026-12-15", weekdays: [1, 2, 3, 4, 5], holiday: "skip" }] } });
+  const q = (await getDoc(doc(db, "polls", id))).data();
+  assert.equal(q.dayType, "weekend");
+  assert.equal(q.exclude[0].holiday, "skip");
+  await assert.rejects(call("updatePoll")({ pollId: id, key: KEY, patch: { dayType: "sunday" } }), e => e.code === "functions/invalid-argument");
+  await assert.rejects(call("updatePoll")({ pollId: id, key: KEY, patch: { exclude: [{ kind: "rule", from: "2026-12-15", to: "2026-12-01" }] } }), e => e.code === "functions/invalid-argument");
   assert.deepEqual(p.invited, [{ name: "アキ", required: true }]);
   await assert.rejects(call("updatePoll")({ pollId: id, key: KEY, patch: { from: "2026-11-01" } }), e => e.code === "functions/invalid-argument");   // to がない
   await assert.rejects(call("updatePoll")({ pollId: id, key: KEY, patch: { title: "" } }), e => e.code === "functions/invalid-argument");

@@ -72,6 +72,11 @@ test("調整を作る：期間・時刻・長さは決まった形だけ（画�
   await assertFails(setDoc(doc(as("u1"), "polls/ZZZZZZZZZZZZZZZZZZZZ"), pollData("u1")));   // ID は小文字と数字だけ
 });
 
+test("調整を作る：対象の日は すべて・土日祝だけ・平日だけ", async () => {
+  await assertSucceeds(setDoc(doc(as("u1"), "polls/zzzzzzzzzzzzzzzzzzd1"), { ...pollData("u1"), dayType: "weekend" }));
+  await assertFails(setDoc(doc(as("u1"), "polls/zzzzzzzzzzzzzzzzzzd2"), { ...pollData("u1"), dayType: "sunday" }));
+});
+
 test("調整を作る：刻みは30分か1時間だけ", async () => {
   await assertSucceeds(setDoc(doc(as("u1"), "polls/zzzzzzzzzzzzzzzzzzz6"), { ...pollData("u1"), step: 60 }));
   await assertFails(setDoc(doc(as("u1"), "polls/zzzzzzzzzzzzzzzzzzz5"), { ...pollData("u1"), step: 15 }));
