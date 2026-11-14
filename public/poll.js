@@ -662,7 +662,7 @@ function renderCand() {
   $("#candQuickN").textContent = ds.length || "";
 }
 // 読む人がすること順に：何の日か → してほしいこと → まだ決まっていないこと。管理する人には変え方も
-const candDlgHtml = () => `<p><b>この中のどれかの日に集まる予定です。</b>なるべく予定を空けておいてください。時間はこれから決めます。</p>${candCalendar(candDates())}${adminKeyOk ? `<p class="info">日ごとのカードの［候補日に入れる］で変えられます</p>` : ""}`;
+const candDlgHtml = () => `<p><b>いまのところ、この日で考えています。</b>なるべく予定を空けておいてください。日程と時間はこれから決めるので、ほかの日になることもあります。</p>${candCalendar(candDates())}${adminKeyOk ? `<p class="info">日ごとのカードの［候補日に入れる］で変えられます</p>` : ""}`;
 const openCand = () => { $("#candBody").innerHTML = candDlgHtml(); $("#candDlg").showModal(); };
 $("#candLine").addEventListener("click", e => { if (e.target.closest("#candOpen")) openCand(); });
 $("#candQuick").addEventListener("click", openCand);
