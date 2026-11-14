@@ -231,6 +231,17 @@ test("週のはじまり（月曜）と、場所の広い順", () => {
   assert.deepEqual(L.weeklyBest(["2026-12-05"], []), [{ week: "2026-11-30", win: null }]);
 });
 
+test("投稿する候補の文面（◆候補① 日時・場所・メモ）", () => {
+  const items = [
+    { date: "2026-12-19", start: 1140, end: 1260, place: "ノア中野 Cst 28帖", memo: "※今すぐ予約可" },
+    { date: "2026-12-13", start: 630, end: 750, place: "", memo: "※会員証ある人に予約お願いする\n\n（早起きが苦手なら後回し）" },
+  ];
+  assert.equal(L.postText(items, []), "◆候補① 12/19(土) 19:00〜21:00\n　ノア中野 Cst 28帖\n　※今すぐ予約可\n\n◆候補② 12/13(日) 10:30〜12:30\n　※会員証ある人に予約お願いする\n　（早起きが苦手なら後回し）");
+  assert.equal(L.postText([{ date: "2027-02-11", start: 780, end: 900 }], ["2027-02-11"]), "◆候補① 2/11(木・祝) 13:00〜15:00");
+  assert.equal(L.circled(20), "⑳");
+  assert.equal(L.circled(21), "(21)");
+});
+
 test("候補の枠の文面", () => {
   assert.equal(L.slotLine({ date: "2026-12-05", start: 840, end: 960, title: "バンド練習" }), "2026-12-05 14:00-16:00 バンド練習");
   assert.equal(L.slotLine({ date: "2026-12-05", start: "13:00", end: "15:00", title: "練習", place: "スタジオA" }), "2026-12-05 13:00-15:00 練習 @スタジオA");

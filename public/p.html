@@ -99,15 +99,16 @@
         <div class="condgrid" id="placeFilters" hidden>
           <div class="field" id="pgroupBox" style="grid-column:1/-1"><span class="label">場所のグループ <span class="sub">押して選ぶ（いくつでも。選ばなければすべて）</span></span><div class="chips" id="pgroups"></div></div>
           <label class="field"><span class="label">場所の名前・メモで探す</span><input type="text" id="pq" placeholder="例：32帖 ドラム"></label>
-          <label class="field"><span class="label">場所の並べ方</span><select id="psort"><option value="fit">人数に合う順</option><option value="wide">広い順</option></select></label>
+          <label class="field" id="psortBox" hidden><span class="label">場所の並べ方</span><select id="psort"><option value="fit">人数に合う順</option><option value="wide">広い順</option></select></label>
         </div>
         <div class="field" style="margin-top:12px"><span class="label">必須の人 <span class="sub">来られない枠は出しません。押して切り替え</span></span><div class="chips" id="reqChips"></div></div>
-        <div class="field" style="margin-top:12px"><span class="label">優先する人 <span class="sub">来られる枠を先に、来られない日はほかの人で並べます。一部の時間だけ重なる枠はその次。少人数の枠を外すときは「参加できる人数」も選んでください</span></span><div class="chips" id="prioChips"></div></div>
+        <div class="field" id="prioBox" hidden style="margin-top:12px"><span class="label">優先する人 <span class="sub">来られる枠を先に、来られない日はほかの人で並べます。一部の時間だけ重なる枠はその次。少人数の枠を外すときは「参加できる人数」も選んでください</span></span><div class="chips" id="prioChips"></div></div>
       </details>
       <div class="legend" style="margin:0 2px 8px" aria-label="マスの見方"><i class="h1"></i><i class="h4" style="margin-left:-6px"></i><span>数字＝参加できる人数（緑が濃いほど多い）</span><b style="color:var(--maybe)">+2</b><span>調整すれば来られる人数</span><i class="hx"></i><span>使わない時間</span><span id="legendFree" hidden style="display:inline-flex;align-items:center;gap:6px"><i class="h0" style="border-bottom:4px solid var(--ink)"></i><span>空いている場所がある時間</span></span></div>
       <p class="sub" id="answered" style="margin:0 2px 8px"></p>
       <p class="sub" id="placesAsOfNote" style="margin:0 2px 8px" hidden></p>
       <div id="planNote"></div>
+      <div id="picks" hidden></div>
       <div id="plan"></div>
     </section>
   </div>

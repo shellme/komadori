@@ -366,6 +366,18 @@ export function slotLine({ date, start, end, title, place }) {
   return [date, t, title, place ? `@${place}` : ""].filter(Boolean).join(" ");
 }
 
+/** ①②…（20まで。それより先は (21)） */
+export const circled = n => n >= 1 && n <= 20 ? String.fromCodePoint(0x2460 + n - 1) : `(${n})`;
+/** 投稿する候補の文面（LINE や Slack に貼る）：
+ *  ◆候補① 1/16(土) 13:00〜15:00
+ *  　場所
+ *  　メモ（何行でも） */
+export function postText(items, holidays = []) {
+  return items.map((x, i) => [`◆候補${circled(i + 1)} ${fmtDay(x.date, holidays)} ${fmtMin(x.start)}〜${fmtMin(x.end)}`,
+    ...(x.place ? [`　${x.place}`] : []),
+    ...String(x.memo || "").split(/\r?\n/).map(s => s.trim()).filter(Boolean).map(s => `　${s}`)].join("\n")).join("\n\n");
+}
+
 /** 長さ（分）を「2時間」「1時間30分」に */
 export function fmtDuration(min) {
   const h = Math.floor(min / 60), m = min % 60;

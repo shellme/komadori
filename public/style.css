@@ -496,3 +496,7 @@ div.howto .menu .pop { left: 0; right: auto; }
 .weekly li { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 8px; padding: 6px 0; font-size: 14px; }
 .weekly .wk { min-width: 3.6em; color: var(--muted); font-size: 12px; font-weight: 700; }
 .weekly a { font-family: var(--f-num); font-weight: 700; color: var(--ink); }
+/* 投稿する候補 */
+.picks { border: 2px solid var(--ink); }
+.picks ol.plain > li.pick { display: grid; gap: 8px; padding: 10px 0; border-top: 1px solid var(--line); }
+.picks .dhead b { font-size: 18px; }
