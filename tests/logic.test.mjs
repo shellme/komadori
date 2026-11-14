@@ -242,6 +242,35 @@ test("投稿する候補の文面（◆候補① 日時・場所・メモ）", (
   assert.equal(L.circled(21), "(21)");
 });
 
+test("AI に相談する用の文面：設定・回答・場所・アプリの候補", () => {
+  const p = poll({ step: 60, from: "2026-12-05", to: "2026-12-06", dayStart: "10:00", dayEnd: "20:00", dayType: "weekend",
+    exclude: [{ kind: "rule", from: "2026-12-06", to: "2026-12-06", start: "18:00", end: "20:00" }] });
+  const ppl = [
+    { name: "アキ", days: { "2026-12-05": { sure: ["13:00-15:00"], note: "15時に出ます" }, "2026-12-06": { ng: true } } },
+    { name: "ベン", days: { "2026-12-05": { sure: ["10:00-20:00"] }, "2026-12-06": { sure: ["10:00-20:00"] } } },
+    { name: "チカ", days: {} },
+  ];
+  const avail = { asOf: "2026-11-13T22:37:00+09:00", places: [{ id: "a", name: "スタジオA 30帖", capacity: { min: 7, max: 12 }, group: "新宿" }, { id: "b", name: "スタジオB" }],
+    slots: [{ place: "a", date: "2026-12-05", free: ["13:00-15:00"] }, { place: "a", date: "2026-12-06", free: ["16:00-21:00"] }] };
+  const windows = L.bestWindows(p, ppl, 120, { avail, priority: ["アキ"], limit: Infinity });
+  const t = L.aiBrief({ poll: p, people: ppl, avail, windows, conds: { duration: 120, kindLabel: "土日祝", priority: ["アキ"] } });
+  assert.match(t, /^# お願い/);
+  assert.match(t, /- 優先する人（来られる日を先に取りたい人）：アキ\n/);
+  assert.match(t, /- 対象の日：土日祝だけ/);
+  assert.match(t, /  - 12\/6 18:00-20:00/);                          // 使わない時間帯
+  assert.match(t, /## アキ\n- 12\/5\(土\) ● 13:00-15:00 💬 15時に出ます\n- 12\/6\(日\) ×/);
+  assert.match(t, /## チカ\n- （まだ回答していない）/);
+  // 場所：1日の範囲と使わない時間を除いた空き。空きのない場所は出さない
+  assert.match(t, /## スタジオA 30帖（7〜12人・新宿）\n- 12\/5\(土\) 13:00-15:00\n- 12\/6\(日\) 16:00-18:00/);
+  assert.doesNotMatch(t, /## スタジオB/);
+  assert.match(t, /- 12\/5\(土\) 13:00〜15:00：参加 2\/3人（● アキ、ベン）・来られない・未回答：チカ・空いている場所：スタジオA 30帖/);
+  // 名前を置き換える
+  const anon = L.aiBrief({ poll: p, people: ppl, avail, windows, conds: { priority: ["アキ"] }, anonymize: true });
+  assert.doesNotMatch(anon, /アキ|ベン|チカ/);
+  assert.match(anon, /## メンバーA\n/);
+  assert.match(anon, /優先する人（来られる日を先に取りたい人）：メンバーA/);
+});
+
 test("候補の枠の文面", () => {
   assert.equal(L.slotLine({ date: "2026-12-05", start: 840, end: 960, title: "バンド練習" }), "2026-12-05 14:00-16:00 バンド練習");
   assert.equal(L.slotLine({ date: "2026-12-05", start: "13:00", end: "15:00", title: "練習", place: "スタジオA" }), "2026-12-05 13:00-15:00 練習 @スタジオA");

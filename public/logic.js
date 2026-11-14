@@ -378,6 +378,77 @@ export function postText(items, holidays = []) {
     ...String(x.memo || "").split(/\r?\n/).map(s => s.trim()).filter(Boolean).map(s => `　${s}`)].join("\n")).join("\n\n");
 }
 
+/** AI に相談する用の文面（管理する人が ChatGPT などに貼る）：お願い・条件のひな形・設定・回答・場所・アプリが出した候補。
+ *  windows はアプリが出した候補（よい順）、conds は { duration, kindLabel, min, required, priority, dates }。
+ *  anonymize なら、名前を「メンバーA」…に置き換える（コメントの中の名前は置き換えない） */
+export function aiBrief({ poll, people, avail = null, windows = [], conds = {}, anonymize = false }) {
+  const hol = poll.holidays || [], step = stepOf(poll), day = iso => fmtDay(iso, hol);
+  const alias = new Map(people.map((p, i) => [p.name, anonymize ? `メンバー${i < 26 ? String.fromCharCode(65 + i) : i + 1}` : p.name]));
+  const nm = n => alias.get(n) ?? n, names = list => list.map(nm).join("、");
+  const rng = set => rangesToText(slotsToRanges(set, step)).join(", ");
+  const dates = conds.dates || activeDates(poll), s0 = toMin(poll.dayStart), e0 = toMin(poll.dayEnd);
+  const L = [];
+  L.push(`# お願い`, `「${poll.title}」の日程調整の回答です。ここから練習日の候補を選んでください。`,
+    `- 「アプリが出した候補」の人数・来られない人・空いている場所は計算済みです。これを正として使い、回答にない時間や空いていない場所を候補にしないでください`,
+    `- 下の「条件」に合わせて選び、候補ごとに選んだ理由を1〜2行で添えてください`,
+    `- 候補は次の形で書いてください（LINE や Slack にそのまま貼ります）`, ``,
+    `◆候補① 1/16(土) 13:00〜15:00`, `　場所の名前`, `　ひとこと（任意）`, ``);
+  L.push(`# 条件（わかるところを書き足してください）`, `- 練習の頻度：`, `- 本番の日：`,
+    `- 優先する人（来られる日を先に取りたい人）：${names(conds.priority || [])}`,
+    `- 必須の人（来られない枠は選ばない人）：${names(conds.required || [])}`,
+    `- 遠くから来る人・部屋の希望：`, `- そのほか：`, ``);
+  L.push(`# 日程調整の設定`, `- 期間：${day(poll.from)}〜${day(poll.to)}`,
+    `- 対象の日：${(DAY_TYPES[poll.dayType] || DAY_TYPES.all).label}`,
+    `- 1日の時間：${poll.dayStart}〜${poll.dayEnd}（${step === 60 ? "1時間" : "30分"}刻み）`,
+    `- 集まりたい長さ：${fmtDuration(conds.duration || poll.durations?.[0] || 120)}`);
+  const ex = exclusionsText(poll.exclude);
+  if (ex) L.push(`- 使わない日・時間帯：`, ...ex.split("\n").map(s => `  - ${s}`));
+  if (hol.length) L.push(`- 期間中の祝日：${hol.map(day).join("、")}`);
+  L.push(``, `# 回答（● 参加できる・△ 調整が必要・× 参加できない。書いていない日は、まだ回答していない）`);
+  for (const p of people) {
+    L.push(``, `## ${nm(p.name)}`);
+    let any = false;
+    for (const iso of dates) {
+      const d = p.days?.[iso]; if (!d) continue;
+      const pd = personDay(p, iso, poll), note = d.note ? ` 💬 ${d.note}` : "";
+      const parts = d.ng ? ["×"] : [pd.sure.size ? `● ${rng(pd.sure)}` : "", pd.maybe.size ? `△ ${rng(pd.maybe)}` : ""].filter(Boolean);
+      if (!parts.length && !note) continue;
+      L.push(`- ${day(iso)} ${parts.join(" ") || "×"}${note}`); any = true;
+    }
+    if (!any) L.push(`- （まだ回答していない）`);
+  }
+  if (avail?.places?.length) {
+    L.push(``, `# 場所（空き時間。人数は使える人数の目安）${avail.asOf ? `：${fmtAsOf(avail.asOf)}時点` : ""}`);
+    for (const pl of avail.places) {
+      const rows = dates.map(iso => {
+        const sl = (avail.slots || []).find(x => x.place === pl.id && x.date === iso);
+        const exs = excludedOn(poll, iso).slots;
+        const free = new Set([...slotSet(parseRanges(sl?.free || [], step), step)].filter(m => m >= s0 && m < e0 && !exs.has(m)));
+        return free.size ? `- ${day(iso)} ${rng(free)}` : "";
+      }).filter(Boolean);
+      if (!rows.length) continue;
+      const info = [pl.capacity ? capacityLabel(pl.capacity) : "", pl.group || "", pl.note && !pl.name.includes(pl.note) ? pl.note : ""].filter(Boolean).join("・");
+      L.push(``, `## ${pl.name}${info ? `（${info}）` : ""}`, ...rows);
+    }
+  }
+  const cond = [fmtDuration(conds.duration || 120), conds.kindLabel || "", conds.min > 1 ? `${conds.min}人以上` : ""].filter(Boolean).join("・");
+  L.push(``, `# アプリが出した候補（日ごとに上位3つ。${cond}）`);
+  const total = people.length;
+  for (const iso of dates) {
+    const ws = windows.filter(w => w.date === iso).slice(0, 3);
+    for (const w of ws) {
+      const missing = people.map(p => p.name).filter(n => !w.sure.includes(n) && !w.maybe.includes(n));
+      const pls = avail ? placesForWindow(avail, iso, w.start, w.end, w.sure.length + w.maybe.length) : null;
+      const usable = pls ? [...pls.fit, ...pls.unknown, ...pls.roomy].map(p => p.name) : [];
+      L.push(`- ${day(iso)} ${fmtMin(w.start)}〜${fmtMin(w.end)}：参加 ${w.sure.length}/${total}人（● ${names(w.sure) || "なし"}${w.maybe.length ? `／△ ${names(w.maybe)}` : ""}）`
+        + (missing.length ? `・来られない・未回答：${names(missing)}` : "")
+        + (w.near?.length ? `・一部の時間だけ来られる：${names(w.near)}` : "")
+        + (pls ? `・空いている場所：${usable.length ? usable.join("、") : "なし"}` : ""));
+    }
+  }
+  return L.join("\n");
+}
+
 /** 長さ（分）を「2時間」「1時間30分」に */
 export function fmtDuration(min) {
   const h = Math.floor(min / 60), m = min % 60;

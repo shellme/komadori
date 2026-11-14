@@ -108,6 +108,14 @@
       <p class="sub" id="answered" style="margin:0 2px 8px"></p>
       <p class="sub" id="placesAsOfNote" style="margin:0 2px 8px" hidden></p>
       <div id="planNote"></div>
+      <details class="card aibox" id="aiBox" hidden>
+        <summary><b>🤖 AIに相談する</b> <span class="sub">回答と場所を、ChatGPT や Claude に貼る文面にします</span></summary>
+        <p class="sub">お願いのしかた・条件のひな形（頻度や本番の日を書き足す）・設定・みんなの回答・場所の空き・アプリが出した候補をまとめてコピーします。候補と場所は、いまの「条件」で出したものです。</p>
+        <p class="warn">名前とコメントが、貼り付けたAIのサービスに渡ります。気になるときは名前を置き換えてください</p>
+        <label class="check"><input type="checkbox" id="aiAnon">名前を「メンバーA・B…」に置き換える</label>
+        <div class="actions"><button type="button" class="btn primary" id="aiCopy">AIに相談する用にコピー</button></div>
+        <p class="sub">AIが選んだ候補は、この画面の候補と見比べてから「投稿する候補」に入れて投稿してください。</p>
+      </details>
       <div id="picks" hidden></div>
       <div id="plan"></div>
     </section>
