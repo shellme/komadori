@@ -31,7 +31,7 @@
   <div id="missing" hidden>
     <h1>この日程調整は見つかりません</h1>
     <p class="empty">URL がまちがっているか、削除された日程調整です</p>
-    <p style="margin-top:16px"><a class="btn" href="/">トップへ</a></p>
+    <p style="margin-top:16px;text-align:center"><a class="btn" href="/">トップへ</a></p>
   </div>
 
   <div id="poll" hidden>
@@ -52,9 +52,13 @@
       <p class="info">管理用の URL で開いています。みんなに送るのは回答用の URL です</p>
     </div>
 
-    <div class="modes" role="tablist">
-      <button role="tab" id="tabAnswer" aria-selected="true" aria-controls="answer">自分の時間を回答</button>
-      <button role="tab" id="tabResult" aria-selected="false" aria-controls="result">みんなの状況 <span id="peopleCount"></span></button>
+    <!-- 上に貼りつく帯：大きな切り替えと、候補日のカレンダー（スクロールしたままどこからでも開けるように） -->
+    <div class="modebar">
+      <div class="modes" role="tablist">
+        <button role="tab" id="tabAnswer" aria-selected="true" aria-controls="answer">自分の時間を回答</button>
+        <button role="tab" id="tabResult" aria-selected="false" aria-controls="result">みんなの状況 <span id="peopleCount"></span></button>
+      </div>
+      <button type="button" class="candquick" id="candQuick" hidden aria-label="候補日のカレンダー" title="候補日のカレンダー">📌<span id="candQuickN"></span></button>
     </div>
 
     <section id="answer" role="tabpanel" aria-labelledby="tabAnswer">
@@ -107,9 +111,9 @@
         <div class="field" style="margin-top:12px"><span class="label">必須の人 <span class="sub">来られない枠は出しません。押して切り替え</span></span><div class="chips" id="reqChips"></div></div>
         <div class="field" id="prioBox" hidden style="margin-top:12px"><span class="label">優先する人 <span class="sub">来られる枠を先に、来られない日はほかの人で並べます。一部の時間だけ重なる枠はその次。少人数の枠を外すときは「参加できる人数」も選んでください</span></span><div class="chips" id="prioChips"></div></div>
       </details>
-      <details class="howbox"><summary>ⓘ マスと ★ 候補の見方</summary><div class="howbody">
+      <details class="howbox"><summary>マスとおすすめの見方<svg class="chev" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg></summary><div class="howbody">
       <div class="legend" aria-label="マスの見方"><i class="h1"></i><i class="h4" style="margin-left:-6px"></i><span>数字＝参加できる人数（緑が濃いほど多い）</span><b style="color:var(--maybe)">+2</b><span>調整すれば来られる人数</span><i class="hx"></i><span>使わない時間</span><span id="legendFree" hidden style="display:inline-flex;align-items:center;gap:6px"><i class="h0" style="border-bottom:4px solid var(--ink)"></i><span>空いている場所がある時間</span></span></div>
-        <p>★ 候補は、そろう人の多さ（同じなら空いている場所の多さ）で選んだ時間帯です。決めるときの目安にしてください</p>
+        <p>日ごとに、そろう人の多さ（同じなら空いている場所の多さ）で時間帯を3つまで出し、いちばんよいものに「おすすめ」を付けます。決めるときの目安です（管理する人が選ぶ「📌 候補日」とは別のものです）</p>
         <p id="placesAsOfNote" hidden></p>
       </div></details>
       <div id="planNote"></div>
@@ -126,25 +130,23 @@
 </footer>
 <dialog id="aiDlg" aria-labelledby="aiH">
   <form method="dialog" class="dlg">
-    <h3 id="aiH">🤖 AIに相談する</h3>
-    <p class="sub">回答と場所を、ChatGPT や Claude に貼る文面にします。お願いのしかた・条件のひな形（頻度や本番の日を書き足す）・設定・みんなの回答・場所の空き・アプリが出した候補が入ります。候補と場所は、いまの「条件」で出したものです。</p>
+    <div class="dlghead"><h3 id="aiH">🤖 AIに相談する</h3><button type="button" class="dlgx" data-close aria-label="閉じる" title="閉じる"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg></button></div>
+    <p class="sub">回答と場所を、ChatGPT や Claude に貼る文面にします。お願いのしかた・条件のひな形（頻度や本番の日を書き足す）・設定・みんなの回答・場所の空き・アプリのおすすめの時間が入ります。おすすめと場所は、いまの「条件」で出したものです。</p>
     <p class="warn">名前とコメントが、貼り付けたAIのサービスに渡ります。気になるときは名前を置き換えてください</p>
     <label class="check"><input type="checkbox" id="aiAnon">名前を「メンバーA・B…」に置き換える</label>
     <div class="actions"><button type="button" class="btn primary" id="aiCopy">AIに相談する用にコピー</button><button type="button" class="btn" id="aiSave">ファイルで保存（.md）</button></div>
     <p class="info">長くて貼りにくいときは、ファイルで保存して AI に添付してください。AIが選んだ候補は、みんなの状況の候補と見比べてから投稿してください。よさそうな日は「候補日に入れる」で、みんなにも見せられます。</p>
-    <div class="actions dlgfoot"><button type="button" class="btn" data-close>閉じる</button></div>
   </form>
 </dialog>
 <dialog id="candDlg" aria-labelledby="candH">
   <form method="dialog" class="dlg">
-    <h3 id="candH">📌 候補日</h3>
+    <div class="dlghead"><h3 id="candH">📌 候補日</h3><button type="button" class="dlgx" data-close aria-label="閉じる" title="閉じる"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg></button></div>
     <div id="candBody"></div>
-    <div class="actions dlgfoot"><button type="button" class="btn" data-close>閉じる</button></div>
   </form>
 </dialog>
 <dialog id="editDlg" aria-labelledby="editH">
   <form method="dialog" class="dlg" id="editForm">
-    <h3 id="editH">⚙️ 設定を編集</h3>
+    <div class="dlghead"><h3 id="editH">⚙️ 設定を編集</h3><button type="button" class="dlgx" data-close aria-label="閉じる" title="閉じる"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg></button></div>
     <div class="row"><label class="field" style="flex:0 0 6em"><span class="label">アイコン</span><input type="text" id="edEmoji" maxlength="16" placeholder="例：🎸"></label>
       <label class="field"><span class="label">名前</span><input type="text" id="edTitle" maxlength="80"></label></div>
     <div class="field"><span class="label">期間 <span class="sub">3か月まで</span></span>
@@ -175,8 +177,8 @@
 </dialog>
 <dialog id="placesDlg" aria-labelledby="placesH">
   <form method="dialog" class="dlg">
-    <h3 id="placesH">📍 場所の空き状況</h3>
-    <p class="info">場所ごとの空いている時間を貼ると、候補に「空いている場所」が出ます。書き方は［形の説明・AI への指示］へ</p>
+    <div class="dlghead"><h3 id="placesH">📍 場所の空き状況</h3><button type="button" class="dlgx" data-close aria-label="閉じる" title="閉じる"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg></button></div>
+    <p class="info">場所ごとの空いている時間を貼ると、おすすめの時間に「空いている場所」が出ます。書き方は［形の説明・AI への指示］へ</p>
     <p class="sub" id="placesNowDlg"></p>
     <textarea id="placesText" style="min-height:120px;font-size:13px" placeholder="貼り付けるか、ファイルをここに落とします。例：&#10;スタジオA 32帖	12/5	13:00-18:00, 19:00-22:00&#10;居酒屋まる	12/5	18:00-23:00	4〜8人"></textarea>
     <div class="actions"><label class="btn sm">ファイルを読み込む<input type="file" id="placesFile" accept=".txt,.tsv,.csv,.json,text/*,application/json" hidden></label>
@@ -191,7 +193,7 @@
 </dialog>
 <dialog id="tplDlg" aria-labelledby="tplH">
   <form method="dialog" id="tplForm" class="dlg">
-    <h3 id="tplH">いつもの予定でまとめて入力</h3>
+    <div class="dlghead"><h3 id="tplH">いつもの予定でまとめて入力</h3><button type="button" class="dlgx" data-close aria-label="閉じる" title="閉じる"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg></button></div>
     <p class="info">曜日ごとに入れます。あとから1日ずつ変えられます</p>
     <fieldset class="scope"><legend class="k">入れる日</legend>
       <label><input type="radio" name="tplScope" value="all" checked>全部の日</label>

@@ -375,8 +375,8 @@ export function slotLine({ date, start, end, title, place }) {
   return [date, t, title, place ? `@${place}` : ""].filter(Boolean).join(" ");
 }
 
-/** AI に相談する用の文面（管理する人が ChatGPT などに貼る）：お願い・条件のひな形・設定・回答・場所・アプリが出した候補。
- *  windows はアプリが出した候補（よい順）、conds は { duration, kindLabel, min, required, priority, dates }。
+/** AI に相談する用の文面（管理する人が ChatGPT などに貼る）：お願い・条件のひな形・設定・回答・場所・アプリのおすすめの時間。
+ *  windows はアプリのおすすめの時間（よい順）、conds は { duration, kindLabel, min, required, priority, dates }。
  *  anonymize なら、名前を「メンバーA」…に置き換える（コメントの中の名前は置き換えない） */
 export function aiBrief({ poll, people, avail = null, windows = [], conds = {}, anonymize = false }) {
   const hol = poll.holidays || [], step = stepOf(poll), day = iso => fmtDay(iso, hol);
@@ -386,7 +386,7 @@ export function aiBrief({ poll, people, avail = null, windows = [], conds = {}, 
   const dates = conds.dates || activeDates(poll), s0 = toMin(poll.dayStart), e0 = toMin(poll.dayEnd);
   const L = [];
   L.push(`# お願い`, `「${poll.title}」の日程調整の回答です。ここから練習日の候補を選んでください。`,
-    `- 「アプリが出した候補」の人数・来られない人・空いている場所は計算済みです。これを正として使い、回答にない時間や空いていない場所を候補にしないでください`,
+    `- 「アプリのおすすめの時間」の人数・来られない人・空いている場所は計算済みです。これを正として使い、回答にない時間や空いていない場所を候補にしないでください`,
     `- 下の「条件」に合わせて選び、候補ごとに選んだ理由を1〜2行で添えてください`,
     `- 候補は次の形で書いてください（LINE や Slack にそのまま貼ります）`, ``,
     `◆候補① 1/16(土) 13:00〜15:00`, `　場所の名前`, `　ひとこと（任意）`, ``);
@@ -430,7 +430,7 @@ export function aiBrief({ poll, people, avail = null, windows = [], conds = {}, 
     }
   }
   const cond = [fmtDuration(conds.duration || 120), conds.kindLabel || "", conds.min > 1 ? `${conds.min}人以上` : ""].filter(Boolean).join("・");
-  L.push(``, `# アプリが出した候補（日ごとに上位3つ。${cond}）`);
+  L.push(``, `# アプリのおすすめの時間（日ごとに上位3つ。${cond}）`);
   const total = people.length, cand = new Set(poll.candDates || []);
   for (const iso of dates) {
     const ws = windows.filter(w => w.date === iso).slice(0, 3);

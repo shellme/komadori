@@ -90,8 +90,12 @@ ul.plain > li:last-child { border-bottom: 0; }
 details > summary { cursor: pointer; }
 
 /* 大きな切り替え（画面の主なモード）：灰色の溝の中で、選んだものを黒で塗る */
-.modes { position: sticky; top: 8px; z-index: 10; display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; gap: 4px;
-  border-radius: 16px; background: var(--chip); padding: 4px; box-shadow: 0 0 0 6px var(--bg); margin: 16px 0; }
+/* 上に貼りつく帯（大きな切り替え＋候補日のボタン） */
+.modebar { position: sticky; top: 8px; z-index: 10; display: flex; gap: 6px; margin: 16px 0; box-shadow: 0 0 0 6px var(--bg); background: var(--bg); border-radius: 16px; }
+.modes { flex: 1 1 auto; display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; gap: 4px;
+  border-radius: 16px; background: var(--chip); padding: 4px; }
+.candquick { flex: none; display: inline-flex; align-items: center; justify-content: center; gap: 2px; min-width: 48px; padding: 0 10px; border: 0; border-radius: 16px; background: var(--chip); font-size: 15px; font-weight: 700; color: var(--ink); cursor: pointer; font-family: var(--f-num); }
+.candquick[hidden] { display: none; }
 .modes button { border: 0; background: none; border-radius: 12px; min-height: 40px; font-weight: 700; font-size: 14px; color: var(--muted); cursor: pointer; }
 .modes button[aria-selected=true] { background: var(--ink); color: var(--bg); }
 
@@ -246,6 +250,11 @@ dialog { border: 0; border-radius: 22px; padding: 0; max-width: min(560px, calc(
 dialog::backdrop { background: rgb(0 0 0 / .45); }
 .dlg { display: grid; gap: 16px; padding: 20px; }
 .dlg h3 { margin: 0; font-size: 18px; }
+/* ダイアログの見出しと右上の ✕（どのダイアログでも同じ場所で閉じられる）。長いダイアログでもスクロールせずに閉じられるよう、見出しは上に貼りつける */
+.dlghead { position: sticky; top: 0; z-index: 2; display: flex; align-items: center; gap: 8px; margin: -20px -20px 0; padding: 14px 12px 10px 20px; background: var(--surface); }
+.dlghead h3 { flex: 1 1 auto; }
+.dlgx { flex: none; display: inline-grid; place-items: center; width: 40px; height: 40px; border: 0; border-radius: 999px; background: none; color: var(--muted); cursor: pointer; }
+.dlgx:hover { background: var(--chip); color: var(--ink); }
 .scope { border: 0; padding: 0; margin: 0; display: flex; flex-wrap: wrap; gap: 6px; }
 .scope legend { margin-bottom: 8px; padding: 0; }
 .scope label { display: flex; min-height: 40px; align-items: center; gap: 8px; border: 1.5px solid var(--line); border-radius: 12px; padding: 0 12px; font-size: 14px; font-weight: 700; cursor: pointer; }
@@ -495,6 +504,8 @@ div.howto .menu .pop { left: 0; right: auto; }
 /* 優先する人のようす（候補の中） */
 .pill.maybe { background: var(--maybe); color: #111; }
 /* 候補日（期間の下の1行と、カレンダーのダイアログ） */
+#candBody { display: grid; gap: 16px; }
+#candBody > p { margin: 0; }
 .candline { margin: 8px 0 0; font-size: 14px; display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 8px; }
 .candlist { font-family: var(--f-num); font-weight: 700; }
 .linkbtn { border: 0; background: none; padding: 0; color: var(--link); font: inherit; font-weight: 700; cursor: pointer; }
@@ -512,9 +523,12 @@ div.howto .menu .pop { left: 0; right: auto; }
 .statusline b { color: var(--ink); font-family: var(--f-num); }
 .statusline .sep { margin: 0 2px; }
 .howbox { margin: 0 2px 12px; font-size: 13px; color: var(--muted); }
-.howbox > summary { cursor: pointer; font-weight: 700; color: var(--link); list-style: none; width: fit-content; }
+/* 開いて読めるとわかるように、「条件」と同じ ⌄ を付ける（開くと上向き） */
+.howbox > summary { cursor: pointer; font-weight: 700; color: var(--link); list-style: none; width: fit-content; display: inline-flex; align-items: center; gap: 2px; min-height: 32px; }
+.howbox > summary .chev { transition: transform .15s; }
+.howbox[open] > summary .chev { transform: rotate(180deg); }
 .howbox > summary::-webkit-details-marker { display: none; }
 .howbox .howbody { display: grid; gap: 6px; margin-top: 8px; }
 .howbox .howbody p { margin: 0; }
-/* 日へ移ったとき、上に貼りつく切り替え（.modes）に日付が隠れないように */
+/* 日へ移ったとき、上に貼りつく帯（.modebar）に日付が隠れないように */
 #plan > .card[id^="d-"], #days > .card[data-date] { scroll-margin-top: 72px; }
