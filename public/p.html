@@ -37,19 +37,20 @@
   <div id="poll" hidden>
     <h1 id="title"></h1>
     <p class="sub" id="meta"></p>
+    <p class="candline" id="candLine" hidden></p>
     <p id="note" class="quote" hidden style="margin-top:8px"></p>
     <div class="actions" style="margin-top:8px"><button type="button" class="btn sm" id="share">送る</button><button type="button" class="btn sm" id="copyAnswerUrl">回答用の文面をコピー</button></div>
     <details id="excludeBox" class="sub" hidden style="margin-top:8px"><summary>使わない日・時間帯</summary><ul class="plain" id="excludeList"></ul></details>
-    <div id="adminBox" class="adm" hidden style="margin-top:16px">
-      <div><span class="tag dark">管理</span> <span class="sub">管理用の URL で開いています。みんなに送るのは回答用の URL です</span></div>
+    <div id="adminBox" class="adm" hidden>
       <input type="hidden" id="answerUrl">
       <div class="actions">
+        <span class="tag dark">管理</span>
         <button type="button" class="btn sm" id="openEdit">⚙️ 設定を編集</button>
         <button type="button" class="btn sm" id="openPlaces">📍 場所の空き状況 <span class="sub" id="placesNow" style="font-weight:400"></span></button>
+        <button type="button" class="btn sm" id="openAi">🤖 AIに相談</button>
       </div>
+      <p class="info">管理用の URL で開いています。みんなに送るのは回答用の URL です</p>
     </div>
-
-    <div id="candBox" hidden></div>
 
     <div class="modes" role="tablist">
       <button role="tab" id="tabAnswer" aria-selected="true" aria-controls="answer">自分の時間を回答</button>
@@ -89,7 +90,7 @@
     </section>
 
     <section id="result" role="tabpanel" aria-labelledby="tabResult" hidden>
-      <p class="sub" style="margin:0 2px 12px">★ 候補が決めるときの目安です</p>
+      <div class="statusline" id="answered"></div>
       <details class="card" id="planFilters" style="gap:0;padding-top:12px;padding-bottom:12px">
         <summary class="condsum"><b>条件</b><span id="planCond" class="sub"></span><span class="change"><span class="if-closed">変更</span><span class="if-open">閉じる</span><svg class="chev" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg></span></summary>
         <div class="condgrid">
@@ -106,21 +107,12 @@
         <div class="field" style="margin-top:12px"><span class="label">必須の人 <span class="sub">来られない枠は出しません。押して切り替え</span></span><div class="chips" id="reqChips"></div></div>
         <div class="field" id="prioBox" hidden style="margin-top:12px"><span class="label">優先する人 <span class="sub">来られる枠を先に、来られない日はほかの人で並べます。一部の時間だけ重なる枠はその次。少人数の枠を外すときは「参加できる人数」も選んでください</span></span><div class="chips" id="prioChips"></div></div>
       </details>
-      <div class="legend" style="margin:0 2px 8px" aria-label="マスの見方"><i class="h1"></i><i class="h4" style="margin-left:-6px"></i><span>数字＝参加できる人数（緑が濃いほど多い）</span><b style="color:var(--maybe)">+2</b><span>調整すれば来られる人数</span><i class="hx"></i><span>使わない時間</span><span id="legendFree" hidden style="display:inline-flex;align-items:center;gap:6px"><i class="h0" style="border-bottom:4px solid var(--ink)"></i><span>空いている場所がある時間</span></span></div>
-      <p class="sub" id="answered" style="margin:0 2px 8px"></p>
-      <p class="sub" id="placesAsOfNote" style="margin:0 2px 8px" hidden></p>
+      <details class="howbox"><summary>ⓘ マスと ★ 候補の見方</summary><div class="howbody">
+      <div class="legend" aria-label="マスの見方"><i class="h1"></i><i class="h4" style="margin-left:-6px"></i><span>数字＝参加できる人数（緑が濃いほど多い）</span><b style="color:var(--maybe)">+2</b><span>調整すれば来られる人数</span><i class="hx"></i><span>使わない時間</span><span id="legendFree" hidden style="display:inline-flex;align-items:center;gap:6px"><i class="h0" style="border-bottom:4px solid var(--ink)"></i><span>空いている場所がある時間</span></span></div>
+        <p>★ 候補は、そろう人の多さ（同じなら空いている場所の多さ）で選んだ時間帯です。決めるときの目安にしてください</p>
+        <p id="placesAsOfNote" hidden></p>
+      </div></details>
       <div id="planNote"></div>
-      <details class="card aibox" id="aiBox" hidden>
-        <summary class="condsum"><b>🤖 AIに相談する</b><span class="sub">回答と場所を、ChatGPT や Claude に貼る文面にします</span><span class="change"><span class="if-closed">開く</span><span class="if-open">閉じる</span><svg class="chev" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg></span></summary>
-        <div class="aibody">
-        <p class="sub">お願いのしかた・条件のひな形（頻度や本番の日を書き足す）・設定・みんなの回答・場所の空き・アプリが出した候補をまとめてコピーします。候補と場所は、いまの「条件」で出したものです。</p>
-        <p class="warn">名前とコメントが、貼り付けたAIのサービスに渡ります。気になるときは名前を置き換えてください</p>
-        <label class="check"><input type="checkbox" id="aiAnon">名前を「メンバーA・B…」に置き換える</label>
-        <div class="actions"><button type="button" class="btn primary" id="aiCopy">AIに相談する用にコピー</button><button type="button" class="btn" id="aiSave">ファイルで保存（.md）</button></div>
-        <p class="sub">長くて貼りにくいときは、ファイルで保存して AI に添付してください。</p>
-        <p class="sub">AIが選んだ候補は、この画面の候補と見比べてから投稿してください。よさそうな日は「候補日に入れる」で、みんなにも見せられます。</p>
-        </div>
-      </details>
       <div id="plan"></div>
     </section>
   </div>
@@ -132,6 +124,24 @@
   <a href="https://github.com/shellme/komadori/issues" target="_blank" rel="noopener">不具合・要望</a>
   <span>絵文字：<a href="https://github.com/jdecked/twemoji" target="_blank" rel="noopener">Twemoji</a>（CC-BY 4.0）</span>
 </footer>
+<dialog id="aiDlg" aria-labelledby="aiH">
+  <form method="dialog" class="dlg">
+    <h3 id="aiH">🤖 AIに相談する</h3>
+    <p class="sub">回答と場所を、ChatGPT や Claude に貼る文面にします。お願いのしかた・条件のひな形（頻度や本番の日を書き足す）・設定・みんなの回答・場所の空き・アプリが出した候補が入ります。候補と場所は、いまの「条件」で出したものです。</p>
+    <p class="warn">名前とコメントが、貼り付けたAIのサービスに渡ります。気になるときは名前を置き換えてください</p>
+    <label class="check"><input type="checkbox" id="aiAnon">名前を「メンバーA・B…」に置き換える</label>
+    <div class="actions"><button type="button" class="btn primary" id="aiCopy">AIに相談する用にコピー</button><button type="button" class="btn" id="aiSave">ファイルで保存（.md）</button></div>
+    <p class="info">長くて貼りにくいときは、ファイルで保存して AI に添付してください。AIが選んだ候補は、みんなの状況の候補と見比べてから投稿してください。よさそうな日は「候補日に入れる」で、みんなにも見せられます。</p>
+    <div class="actions dlgfoot"><button type="button" class="btn" data-close>閉じる</button></div>
+  </form>
+</dialog>
+<dialog id="candDlg" aria-labelledby="candH">
+  <form method="dialog" class="dlg">
+    <h3 id="candH">📌 候補日</h3>
+    <div id="candBody"></div>
+    <div class="actions dlgfoot"><button type="button" class="btn" data-close>閉じる</button></div>
+  </form>
+</dialog>
 <dialog id="editDlg" aria-labelledby="editH">
   <form method="dialog" class="dlg" id="editForm">
     <h3 id="editH">⚙️ 設定を編集</h3>

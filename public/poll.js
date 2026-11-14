@@ -84,6 +84,7 @@ function renderHeader(isAdmin) {
   $("#excludeBox").hidden = !(poll.exclude || []).length;
   $("#excludeList").innerHTML = (poll.exclude || []).map(x => `<li>${esc(L.exclusionLabel(x, poll.holidays))}</li>`).join("");
   if (isAdmin) { $("#adminBox").hidden = false; adminKeyOk = adminKey; }
+  renderCand();
   $("#share").hidden = !navigator.share;
   const curDur = +$("#dur").value;
   $("#dur").innerHTML = poll.durations.map(d => `<option value="${d}" ${d === curDur ? "selected" : ""}>${L.fmtDuration(d)}</option>`).join("");
@@ -557,7 +558,6 @@ function notesHtml(notes) {
   return notes.slice(0, 3).map(one).join("") + `<details class="names"><summary>ほかのコメント ${notes.length - 3}件</summary>${notes.slice(3).map(one).join("")}</details>`;
 }
 function renderPlan() {
-  renderCand();
   renderReqChips();
   $("#peopleCount").textContent = people.length ? `(${people.length})` : "";
   const total = people.length, dur = +$("#dur").value || poll.durations[0], kind = $("#kind").value;
@@ -568,7 +568,8 @@ function renderPlan() {
   const prog = L.progress(poll, people);
   const full = prog.filter(x => !x.left), partial = prog.filter(x => x.left > 0).sort((a, b) => b.left - a.left);
   const everyone = people.length + ast.pending.length;
-  $("#answered").innerHTML = everyone ? `<p>全部の日に回答した人：<b style="color:var(--ink)">${full.length}/${everyone}人</b>${full.length === everyone ? "（全員そろいました🎉）" : ""}</p>`
+  const asOf = avail ? `<span class="sep">・</span><span>📍 場所の空き${avail.asOf ? ` ${esc(L.fmtAsOf(avail.asOf))}時点` : ""}</span>` : "";
+  $("#answered").innerHTML = everyone ? `<p>全部の日に回答した人 <b>${full.length}/${everyone}人</b>${full.length === everyone ? "（全員そろいました🎉）" : ""}${asOf}</p>`
     + namesLine("まだ残りがある人", partial.map(x => `${x.name}（残り${x.left}日）`), "font-weight:700")
     + namesLine("まだ回答していない人", ast.pending, "color:var(--ng);font-weight:700")
     + (ast.invited && ast.others.length ? namesLine("呼びたい人の一覧にいない回答", ast.others) : "") : "";
@@ -581,7 +582,7 @@ function renderPlan() {
   const av = avail ? L.filterPlaces(avail, { groups: [...pgroups], q: $("#pq").value }) : null;
   $("#legendFree").hidden = !av;
   $("#placesAsOfNote").hidden = !avail;
-  if (avail) $("#placesAsOfNote").textContent = `📍 場所の空き状況${avail.asOf ? `：${L.fmtAsOf(avail.asOf)}時点` : ""}。予約の前に、必ずそれぞれの場所で空きを確かめてください`;
+  if (avail) $("#placesAsOfNote").textContent = `📍 場所の空き状況${avail.asOf ? `は ${L.fmtAsOf(avail.asOf)} 時点のものです` : "は貼ったときのものです"}。予約の前に、必ずそれぞれの場所で空きを確かめてください`;
   // 優先する人が来られる枠 → 一部だけ重なる枠 → 人数 → 空いている場所の数、の順（L.compareWindows）
   $("#prioBox").hidden = $("#psortBox").hidden = !adminKeyOk;
   const priority = [...myPrio()].filter(n => people.some(p => p.name === n));
@@ -632,11 +633,11 @@ function renderPlan() {
   drawEmoji($("#plan"));
   lastWins = all; lastEveryone = everyone; lastAv = av;
   lastDays = days; lastConds = { duration: dur, kindLabel: txt("#kind"), min, required, priority };
-  $("#aiBox").hidden = !adminKeyOk || !total;
 }
 let lastWins = [], lastEveryone = 0, lastAv = null, lastDays = [], lastConds = {};
 // AI に相談する用にコピー（管理用の URL だけ）。候補と場所は、いまの条件で出したもの
 const brief = () => L.aiBrief({ poll, people, avail: lastAv, windows: lastWins, conds: { ...lastConds, dates: lastDays }, anonymize: $("#aiAnon").checked });
+$("#openAi").addEventListener("click", () => $("#aiDlg").showModal());
 $("#aiCopy").addEventListener("click", () => copy(brief(), "AIに相談する用の文面をコピーしました"));
 // 長いときは、Markdown のファイルで保存して AI に添付する
 $("#aiSave").addEventListener("click", () => {
@@ -648,21 +649,20 @@ $("#aiSave").addEventListener("click", () => {
 // 日程調整のあいだに「この日は空けておこう」と思ってもらうため。時間帯は決めない（あとで調整するので日だけ）
 const candDates = () => (poll.candDates || []).filter(d => d >= poll.from && d <= poll.to);
 const isCand = iso => candDates().includes(iso);
-// 開け閉めの印（「条件」と同じ）
-const CHEV = `<span class="change"><span class="if-closed">開く</span><span class="if-open">閉じる</span><svg class="chev" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg></span>`;
+// 期間の下の1行（「📌 候補日 1/16(土)・2/6(土)　カレンダー ›」）。カレンダーはダイアログで開く
 function renderCand() {
-  const box = $("#candBox"), ds = candDates();
-  box.hidden = !ds.length && !adminKeyOk;
-  if (box.hidden) { box.innerHTML = ""; return; }
-  const hol = poll.holidays || [];
-  const list = ds.map(d => L.fmtDay(d, hol)).join("・");
-  // 開け閉めは覚えておく（描き直しで閉じないように）。はじめは、パソコンは開く・スマホは閉じる（見出しに日付が出るので、カレンダーは開いたときだけ）
-  const open = box.querySelector("details") ? box.querySelector("details").open : !isSP();
-  box.innerHTML = `<details class="card candbox" ${open ? "open" : ""}><summary class="condsum"><b>📌 候補日</b>${ds.length ? `<span class="candlist">${esc(list)}</span>` : `<span class="sub">まだありません</span>`}${CHEV}</summary><div class="candbody">
-    <p class="sub">${ds.length ? `この中から日程を決める予定です。できるだけ予定を空けておいてください（時間帯はあとで決めます）` : "みんなの状況の日ごとの「候補日に入れる」で選ぶと、ここと回答の画面に出ます。回答する人にも見えます"}</p>
-    ${ds.length ? candCalendar(ds) : ""}
-  </div></details>`;
+  const line = $("#candLine"), ds = candDates(), hol = poll.holidays || [];
+  line.hidden = !ds.length && !adminKeyOk;
+  line.innerHTML = ds.length
+    ? `<b>📌 候補日</b> <span class="candlist">${esc(ds.map(d => L.fmtDay(d, hol)).join("・"))}</span> <button type="button" class="linkbtn" id="candOpen">カレンダー ›</button>`
+    : `<b>📌 候補日</b> <span class="sub">まだありません。みんなの状況の日ごとの「候補日に入れる」で選ぶと、ここに出ます（回答する人にも見えます）</span>`;
+  if ($("#candDlg").open) $("#candBody").innerHTML = candDlgHtml();
 }
+const candDlgHtml = () => `<p class="sub">この中から日程を決める予定です。できるだけ予定を空けておいてください（時間帯はあとで決めます）。日付を押すと、その日へ移ります</p>${candCalendar(candDates())}`;
+$("#candLine").addEventListener("click", e => {
+  if (!e.target.closest("#candOpen")) return;
+  $("#candBody").innerHTML = candDlgHtml(); $("#candDlg").showModal();
+});
 // 候補日を月のカレンダーに置く（練習の間隔・頻度をつかむため）。押すとその日へ
 function candCalendar(ds) {
   const hol = poll.holidays || [], on = new Set(ds);
@@ -676,10 +676,10 @@ function candCalendar(ds) {
     return `<span class="pc-d ${cls}">${d}</span>`;
   }).join("")}</div></div>`).join("")}</div>`;
 }
-$("#candBox").addEventListener("click", e => {
-  // カレンダーの日：URL の # を変えずに、いま見ている画面のその日へ（管理用の URL の #admin=… を消さないように）
+$("#candDlg").addEventListener("click", e => {
+  // カレンダーの日：ダイアログを閉じて、いま見ている画面のその日へ（URL の # は変えない。管理用の URL の #admin=… を消さないように）
   const go = e.target.closest("a[data-goto]"); if (!go) return;
-  e.preventDefault();
+  e.preventDefault(); $("#candDlg").close();
   const iso = go.dataset.goto;
   [document.getElementById(`d-${iso}`), document.querySelector(`#days [data-date="${iso}"]`)].find(el => el?.offsetParent)?.scrollIntoView({ behavior: "smooth", block: "start" });
 });
