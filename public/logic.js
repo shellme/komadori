@@ -307,7 +307,13 @@ export function grid(poll, people) {
  *  同じ日で開始が近い（duration 未満の差）枠はよいほう1つにまとめる */
 // 並べ方：参加できる人が多い順 → 調整で来られる人も入れて多い順 → 人数に合う空いている場所が多い順 → 広めの場所が多い順（avail があるとき）→ 早い日・早い時間
 // 場所は人数が同じ枠どうしの比べにだけ使う（人数より場所を優先はしない）。近い枠をまとめるのは、この並びで先のものを残す
-export function bestWindows(poll, people, duration, { limit = 20, required = [], min = 1, avail = null } = {}) {
+// 優先する人（priority）：枠のあいだずっと来られる（● か △）人を pri、一部の時間だけ来られる人を near に入れる。
+// 優先する人が来られる枠 → 一部だけ重なる枠 → そのほか、の順に並べる（来られない日も消さずに、ほかの人の人数で並べる）
+export const compareWindows = (a, b) => (b.pri?.length || 0) - (a.pri?.length || 0) || (b.near?.length || 0) - (a.near?.length || 0)
+  || b.sure.length - a.sure.length || (b.sure.length + b.maybe.length) - (a.sure.length + a.maybe.length)
+  || b.places - a.places || b.roomy - a.roomy || a.date.localeCompare(b.date) || a.start - b.start;
+
+export function bestWindows(poll, people, duration, { limit = 20, required = [], priority = [], min = 1, avail = null } = {}) {
   const g = grid(poll, people), slots = daySlots(poll), n = duration / stepOf(poll), res = [];
   for (const iso of Object.keys(g)) {
     if (!Number.isInteger(n)) break;   // 刻みで割り切れない長さは出さない
@@ -325,19 +331,33 @@ export function bestWindows(poll, people, duration, { limit = 20, required = [],
         const f = capacityFit(p, either.length);
         if (f === "fit" || f === "unknown") places++; else if (f === "roomy") roomy++;
       }
-      res.push({ date: iso, start: slots[i], end: slots[i] + duration, sure, maybe: either.filter(x => !sure.includes(x)), places, roomy });
+      const pri = priority.filter(x => either.includes(x));
+      const near = priority.filter(x => !pri.includes(x) && span.some(c => c.sure.includes(x) || c.maybe.includes(x)));
+      res.push({ date: iso, start: slots[i], end: slots[i] + duration, sure, maybe: either.filter(x => !sure.includes(x)), places, roomy, pri, near });
     }
   }
-  res.sort((a, b) => b.sure.length - a.sure.length || (b.sure.length + b.maybe.length) - (a.sure.length + a.maybe.length)
-    || b.places - a.places || b.roomy - a.roomy || a.date.localeCompare(b.date) || a.start - b.start);
+  res.sort(compareWindows);
   const picked = [];
   for (const w of res) {
-    if (picked.some(p => p.date === w.date && Math.abs(p.start - w.start) < duration)) continue;
+    // 重なる枠はまとめる。ただし優先する人が来られる枠と来られない枠は別に出す（「一部だけ重なる枠」を、来られる枠の横に並べて比べられるように）
+    if (picked.some(p => p.date === w.date && Math.abs(p.start - w.start) < duration && p.pri.length === w.pri.length)) continue;
     picked.push(w);
     if (picked.length >= limit) break;
   }
   return picked;
 }
+
+/** その週の月曜日 */
+export const weekStart = iso => addDays(iso, -((weekdayOf(iso) + 6) % 7));
+/** 週ごとのいちばんよい枠：dates（対象の日）の週ごとに [{ week, win }]。win は windows（よい順）の中でその週の最初の枠。ない週は null */
+export function weeklyBest(dates, windows) {
+  const weeks = [...new Set(dates.map(weekStart))].sort();
+  return weeks.map(week => ({ week, win: windows.find(w => weekStart(w.date) === week) || null }));
+}
+
+/** 場所を広い順に（人数の上限、なければ下限が大きい順。人数のない場所は後ろ） */
+export const widestFirst = list => [...list].sort((a, b) =>
+  (b.capacity?.max ?? b.capacity?.min ?? -1) - (a.capacity?.max ?? a.capacity?.min ?? -1));
 
 // ---------- 書き出し ----------
 /** 候補の枠の文面：「2026-12-05 13:00-15:00 バンド練習 @スタジオA」（LINE などに貼る） */

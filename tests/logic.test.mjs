@@ -192,6 +192,45 @@ test("よい枠：人数が同じなら、空いている場所が多い枠を�
   assert.equal(L.fmtMin(L.bestWindows(p, fewer, 120, { avail })[0].start), "10:00");
 });
 
+test("よい枠：優先する人が来られる枠 → 一部だけ重なる枠 → ほかの人が多い枠", () => {
+  const p = poll({ step: 60, from: "2026-12-05", to: "2026-12-13", dayStart: "10:00", dayEnd: "20:00" });
+  const others = ["ベン", "チカ", "ダイ"].map(name => ({ name, days: {
+    "2026-12-05": { sure: ["14:00-20:00"] }, "2026-12-06": { sure: ["10:00-20:00"] }, "2026-12-12": { sure: ["10:00-20:00"] } } }));
+  // アキは 12/5（●）と 12/12（△）の 13-15 だけ。12/6 は来られない
+  const aki = { name: "アキ", days: { "2026-12-05": { sure: ["13:00-15:00"] }, "2026-12-06": { ng: true }, "2026-12-12": { maybe: ["13:00-15:00"] } } };
+  const ppl = [aki, ...others];
+  // 2人以上：12/5 13-15 はアキ1人なので外れる
+  const w = L.bestWindows(p, ppl, 120, { priority: ["アキ"], min: 2, limit: Infinity });
+  // いちばん上は、アキ（△）と3人がそろう 12/12 13-15
+  assert.deepEqual([w[0].date, L.fmtMin(w[0].start), w[0].pri], ["2026-12-12", "13:00", ["アキ"]]);
+  // 次は、アキの時間に一部だけ重なる 12/5 14-16（同じ3人の 12/6 より先）
+  assert.deepEqual([w[1].date, L.fmtMin(w[1].start), w[1].pri, w[1].near], ["2026-12-05", "14:00", [], ["アキ"]]);
+  // 12/12 は、アキが来られる 13-15 の横に、一部だけ重なる枠も出す（重なっていても、まとめない）
+  const d12 = w.filter(x => x.date === "2026-12-12");
+  assert.deepEqual(d12[1].near, ["アキ"]);
+  assert.ok(Math.abs(d12[1].start - d12[0].start) < 120);
+  // アキが来られない 12/6 も消さずに出す（ほかの3人）
+  const d6 = w.filter(x => x.date === "2026-12-06");
+  assert.ok(d6.length && d6[0].sure.length === 3 && !d6[0].pri.length && !d6[0].near.length);
+  // 週ごとのまとめ（月曜はじまり）：11/30 の週は 12/5 14-16、12/7 の週は 12/12 13-15
+  const wk = L.weeklyBest(L.dateRange(p.from, p.to), w);
+  assert.deepEqual(wk.map(x => [x.week, x.win?.date, x.win && L.fmtMin(x.win.start)]),
+    [["2026-11-30", "2026-12-05", "14:00"], ["2026-12-07", "2026-12-12", "13:00"]]);
+  // 優先する人を選ばなければ、今までどおり人数で並べる（pri・near は空）
+  const plain = L.bestWindows(p, ppl, 120, { min: 2, limit: Infinity });
+  assert.ok(plain.every(x => !x.pri.length && !x.near.length));
+  assert.equal(plain[0].sure.length, 3);
+});
+
+test("週のはじまり（月曜）と、場所の広い順", () => {
+  assert.equal(L.weekStart("2026-12-06"), "2026-11-30");   // 日曜は前の週
+  assert.equal(L.weekStart("2026-12-07"), "2026-12-07");
+  const ps = [{ id: "a", capacity: { min: 5, max: 8 } }, { id: "b" }, { id: "c", capacity: { min: 7, max: 12 } }, { id: "d", capacity: { min: 10 } }];
+  assert.deepEqual(L.widestFirst(ps).map(x => x.id), ["c", "d", "a", "b"]);
+  // 候補のない週は null
+  assert.deepEqual(L.weeklyBest(["2026-12-05"], []), [{ week: "2026-11-30", win: null }]);
+});
+
 test("候補の枠の文面", () => {
   assert.equal(L.slotLine({ date: "2026-12-05", start: 840, end: 960, title: "バンド練習" }), "2026-12-05 14:00-16:00 バンド練習");
   assert.equal(L.slotLine({ date: "2026-12-05", start: "13:00", end: "15:00", title: "練習", place: "スタジオA" }), "2026-12-05 13:00-15:00 練習 @スタジオA");

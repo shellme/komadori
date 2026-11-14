@@ -487,3 +487,12 @@ div.howto .menu .pop { left: 0; right: auto; }
 
 /* 場所の空き状況：ファイルを落とせるところ */
 #placesText.dropping { outline: 2px dashed var(--hot-strong); outline-offset: 2px; background: var(--chip); }
+
+/* 優先する人のようす（候補の中） */
+.pill.maybe { background: var(--maybe); color: #111; }
+/* 週ごとのいちばんよい枠 */
+.weekly > summary { cursor: pointer; }
+.weekly ul.plain { margin-top: 8px; }
+.weekly li { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 8px; padding: 6px 0; font-size: 14px; }
+.weekly .wk { min-width: 3.6em; color: var(--muted); font-size: 12px; font-weight: 700; }
+.weekly a { font-family: var(--f-num); font-weight: 700; color: var(--ink); }
