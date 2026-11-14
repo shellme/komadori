@@ -661,7 +661,8 @@ function renderCand() {
   $("#candQuick").hidden = !ds.length;
   $("#candQuickN").textContent = ds.length || "";
 }
-const candDlgHtml = () => `<p class="sub">この中から日程を決める予定です。できるだけ予定を空けておいてください（時間帯はあとで決めます）。日付を押すと、その日へ移ります</p>${candCalendar(candDates())}`;
+// 読む人がすること順に：何の日か → してほしいこと → まだ決まっていないこと。管理する人には変え方も
+const candDlgHtml = () => `<p><b>この中のどれかの日に集まる予定です。</b>なるべく予定を空けておいてください。時間はこれから決めます。</p>${candCalendar(candDates())}${adminKeyOk ? `<p class="info">日ごとのカードの［候補日に入れる］で変えられます</p>` : ""}`;
 const openCand = () => { $("#candBody").innerHTML = candDlgHtml(); $("#candDlg").showModal(); };
 $("#candLine").addEventListener("click", e => { if (e.target.closest("#candOpen")) openCand(); });
 $("#candQuick").addEventListener("click", openCand);
