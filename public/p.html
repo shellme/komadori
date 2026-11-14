@@ -126,25 +126,23 @@
 </footer>
 <dialog id="aiDlg" aria-labelledby="aiH">
   <form method="dialog" class="dlg">
-    <h3 id="aiH">🤖 AIに相談する</h3>
+    <div class="dlghead"><h3 id="aiH">🤖 AIに相談する</h3><button type="button" class="dlgx" data-close aria-label="閉じる" title="閉じる"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg></button></div>
     <p class="sub">回答と場所を、ChatGPT や Claude に貼る文面にします。お願いのしかた・条件のひな形（頻度や本番の日を書き足す）・設定・みんなの回答・場所の空き・アプリが出した候補が入ります。候補と場所は、いまの「条件」で出したものです。</p>
     <p class="warn">名前とコメントが、貼り付けたAIのサービスに渡ります。気になるときは名前を置き換えてください</p>
     <label class="check"><input type="checkbox" id="aiAnon">名前を「メンバーA・B…」に置き換える</label>
     <div class="actions"><button type="button" class="btn primary" id="aiCopy">AIに相談する用にコピー</button><button type="button" class="btn" id="aiSave">ファイルで保存（.md）</button></div>
     <p class="info">長くて貼りにくいときは、ファイルで保存して AI に添付してください。AIが選んだ候補は、みんなの状況の候補と見比べてから投稿してください。よさそうな日は「候補日に入れる」で、みんなにも見せられます。</p>
-    <div class="actions dlgfoot"><button type="button" class="btn" data-close>閉じる</button></div>
   </form>
 </dialog>
 <dialog id="candDlg" aria-labelledby="candH">
   <form method="dialog" class="dlg">
-    <h3 id="candH">📌 候補日</h3>
+    <div class="dlghead"><h3 id="candH">📌 候補日</h3><button type="button" class="dlgx" data-close aria-label="閉じる" title="閉じる"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg></button></div>
     <div id="candBody"></div>
-    <div class="actions dlgfoot"><button type="button" class="btn" data-close>閉じる</button></div>
   </form>
 </dialog>
 <dialog id="editDlg" aria-labelledby="editH">
   <form method="dialog" class="dlg" id="editForm">
-    <h3 id="editH">⚙️ 設定を編集</h3>
+    <div class="dlghead"><h3 id="editH">⚙️ 設定を編集</h3><button type="button" class="dlgx" data-close aria-label="閉じる" title="閉じる"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg></button></div>
     <div class="row"><label class="field" style="flex:0 0 6em"><span class="label">アイコン</span><input type="text" id="edEmoji" maxlength="16" placeholder="例：🎸"></label>
       <label class="field"><span class="label">名前</span><input type="text" id="edTitle" maxlength="80"></label></div>
     <div class="field"><span class="label">期間 <span class="sub">3か月まで</span></span>
@@ -175,7 +173,7 @@
 </dialog>
 <dialog id="placesDlg" aria-labelledby="placesH">
   <form method="dialog" class="dlg">
-    <h3 id="placesH">📍 場所の空き状況</h3>
+    <div class="dlghead"><h3 id="placesH">📍 場所の空き状況</h3><button type="button" class="dlgx" data-close aria-label="閉じる" title="閉じる"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg></button></div>
     <p class="info">場所ごとの空いている時間を貼ると、候補に「空いている場所」が出ます。書き方は［形の説明・AI への指示］へ</p>
     <p class="sub" id="placesNowDlg"></p>
     <textarea id="placesText" style="min-height:120px;font-size:13px" placeholder="貼り付けるか、ファイルをここに落とします。例：&#10;スタジオA 32帖	12/5	13:00-18:00, 19:00-22:00&#10;居酒屋まる	12/5	18:00-23:00	4〜8人"></textarea>
@@ -191,7 +189,7 @@
 </dialog>
 <dialog id="tplDlg" aria-labelledby="tplH">
   <form method="dialog" id="tplForm" class="dlg">
-    <h3 id="tplH">いつもの予定でまとめて入力</h3>
+    <div class="dlghead"><h3 id="tplH">いつもの予定でまとめて入力</h3><button type="button" class="dlgx" data-close aria-label="閉じる" title="閉じる"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg></button></div>
     <p class="info">曜日ごとに入れます。あとから1日ずつ変えられます</p>
     <fieldset class="scope"><legend class="k">入れる日</legend>
       <label><input type="radio" name="tplScope" value="all" checked>全部の日</label>
