@@ -284,6 +284,11 @@ details[open] > .condsum .if-open { display: inline; }
 .condgrid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin-top: 12px; }
 @media (min-width: 768px) { .condgrid { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
 .condgrid select { min-height: 40px; }
+/* 条件のまとまり（日と時間・人・場所）：細い線と小さい見出しで区切る */
+.condsec { display: grid; gap: 12px; margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--line); }
+.condsec .condgrid { margin-top: 0; }
+.condh { margin: 0; font-size: 12px; font-weight: 700; color: var(--muted); }
+#pgroupBox[hidden] { display: none; }
 .legend i.hx { background: repeating-linear-gradient(45deg, var(--chip), var(--chip) 3px, var(--line) 3px, var(--line) 6px); }
 .heatrow > span b { font-family: var(--f-num); font-size: 15px; }
 .heatrow > span .plus { font-size: 10px; font-weight: 800; }
