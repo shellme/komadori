@@ -490,12 +490,6 @@ div.howto .menu .pop { left: 0; right: auto; }
 
 /* 優先する人のようす（候補の中） */
 .pill.maybe { background: var(--maybe); color: #111; }
-/* 週ごとのいちばんよい枠 */
-.weekly > summary { cursor: pointer; }
-.weekly ul.plain { margin-top: 8px; }
-.weekly li { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 8px; padding: 6px 0; font-size: 14px; }
-.weekly .wk { min-width: 3.6em; color: var(--muted); font-size: 12px; font-weight: 700; }
-.weekly a { font-family: var(--f-num); font-weight: 700; color: var(--ink); }
 /* 投稿する候補 */
 .picks { border: 2px solid var(--ink); }
 .picks ol.plain > li.pick { display: grid; gap: 8px; padding: 10px 0; border-top: 1px solid var(--line); }
@@ -505,3 +499,13 @@ div.howto .menu .pop { left: 0; right: auto; }
 /* details の中身には details の gap が効かないので、中身を包んで間をあける */
 .aibox .aibody { display: grid; gap: 12px; margin-top: 12px; }
 .aibox .aibody .actions { margin-top: 4px; }
+/* 投稿する候補のカレンダー */
+.pcal { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 12px 20px; }
+.pc-m > b { font-size: 14px; }
+.pc-g { display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; margin-top: 4px; text-align: center; }
+.pc-h { font-size: 11px; font-weight: 700; color: var(--muted); }
+.pc-h.sun, .pc-d.sun { color: var(--ng); } .pc-h.sat, .pc-d.sat { color: #2b6cd4; }
+.pc-d { display: flex; flex-direction: column; align-items: center; justify-content: flex-start; min-height: 34px; padding-top: 3px; border-radius: 8px; font-family: var(--f-num); font-size: 12px; color: var(--ink); text-decoration: none; }
+.pc-d.out { opacity: .35; }
+.pc-d.on { background: var(--ink); color: var(--bg); font-weight: 700; }
+.pc-d.on small { font-size: 10px; line-height: 1.2; letter-spacing: -.05em; }

@@ -594,8 +594,7 @@ function renderPlan(force = false) {
   $("#planNote").innerHTML = notYet.length ? `<p class="warn">必須の人のうち ${esc(notYet.join("、"))} がまだ回答していないので、その人は数えずに候補を出しています</p>` : "";
   // 候補の「文面をコピー」は、管理用の URL で開いたときだけ出す（決めて知らせる人の操作。回答する人には要らない）
   // 日程の決定はこのアプリでは記録しない（候補をしぼるところまで。決めたら文面をコピーして LINE などで知らせる）
-  const weekly = total && adminKeyOk ? weeklyHtml(L.weeklyBest(days, all.filter(w => days.includes(w.date))), everyone, av) : "";
-  $("#plan").innerHTML = weekly + list.map(({ iso, wins }) => {
+  $("#plan").innerHTML = list.map(({ iso, wins }) => {
     const ngs = people.filter(p => p.days?.[iso]?.ng).map(p => p.name);
     // その日にまだ何も入れていない人（呼びたい人の一覧で、まだ1日も回答していない人も入れる）
     const notYetDay = [...people.filter(p => !L.answeredOn(p.days, iso)).map(p => p.name), ...ast.pending];
@@ -659,6 +658,7 @@ function renderPicks(force = false) {
   if (box.hidden) { box.innerHTML = ""; return; }
   if (!force && box.contains(document.activeElement)) return;   // 書いている途中は描き直さない（ほかの人の回答が届いたときなど）
   box.innerHTML = `<div class="card picks" style="gap:10px"><div><b>投稿する候補 ${picks.length}件</b> <span class="sub">上から ①②…。LINE や Slack に貼る文面にします</span></div>
+    ${pickCalendar()}
     <ol class="plain">${picks.map((x, i) => {
       const w = lastWins.find(v => v.date === x.date && v.start === x.start && v.end === x.end);
       const opts = lastAv && w ? fitPlaces(lastAv, x.date, w).map(p => p.name) : [];
@@ -673,12 +673,29 @@ function renderPicks(force = false) {
     <div class="actions"><button type="button" class="btn primary" data-pkact="copy">文面をコピー</button><button type="button" class="btn sm" data-pkact="clear">全部外す</button></div></div>`;
   growAll(box);
 }
+// 投稿する候補を月のカレンダーに置く（練習の間隔・頻度をつかむため）。候補の日は ①② を出し、押すとその日へ
+function pickCalendar() {
+  const hol = poll.holidays || [], byDay = new Map();
+  picks.forEach((x, i) => byDay.set(x.date, [...(byDay.get(x.date) || []), i + 1]));
+  const head = [...WD].map((w, i) => `<span class="pc-h ${i === 0 ? "sun" : i === 6 ? "sat" : ""}">${w}</span>`).join("");
+  return `<div class="pcal">${L.monthCalendar(poll.from, poll.to).map(({ ym, weeks }) => `<div class="pc-m"><b>${+ym.slice(5)}月</b><div class="pc-g">${head}${weeks.flat().map(iso => {
+    if (!iso) return `<span></span>`;
+    const w = L.weekdayOf(iso), cls = [iso < poll.from || iso > poll.to || L.excludedOn(poll, iso).all ? "out" : "",   // 期間の外・対象でない日は薄く
+       w === 0 || hol.includes(iso) ? "sun" : w === 6 ? "sat" : ""].filter(Boolean).join(" ");
+    const n = byDay.get(iso), d = +iso.slice(8);
+    return n ? `<a class="pc-d on" href="#d-${iso}" data-goto="d-${iso}" title="候補${n.map(L.circled).join("")}"><span>${d}</span><small>${n.map(L.circled).join("")}</small></a>`
+      : `<span class="pc-d ${cls}"><span>${d}</span></span>`;
+  }).join("")}</div></div>`).join("")}</div>`;
+}
 $("#picks").addEventListener("input", e => {
   const li = e.target.closest("[data-i]"), k = e.target.dataset.pk; if (!li || !k) return;
   picks[+li.dataset.i][k] = e.target.value; savePicks();
   if (k === "memo") grow(e.target);
 });
 $("#picks").addEventListener("click", e => {
+  // カレンダーの日：URL の # を変えずにその日へ（管理用の URL の #admin=… を消さないように）
+  const go = e.target.closest("a[data-goto]");
+  if (go) { e.preventDefault(); document.getElementById(go.dataset.goto)?.scrollIntoView({ behavior: "smooth", block: "start" }); return; }
   const b = e.target.closest("[data-pkact]"); if (!b) return;
   const act = b.dataset.pkact, i = +b.closest("[data-i]")?.dataset.i;
   if (act === "copy") { copy(L.postText(picks, poll.holidays || []), "文面をコピーしました"); return; }
@@ -713,20 +730,6 @@ function prioLine(w) {
     : `<span class="pill todo">${esc(n)}：来られない</span>`;
   return `<p class="chips" style="gap:6px">${names.map(one).join("")}</p>`;
 }
-// 週ごとのいちばんよい枠（押すとその日へ）。頻度を決めるときに、週ごとに1つずつ見られるように
-function weeklyHtml(weeks, everyone, av) {
-  if (weeks.length < 2) return "";
-  const md = iso => `${+iso.slice(5, 7)}/${+iso.slice(8)}`;
-  const row = ({ week, win: w }) => {
-    if (!w) return `<li><span class="wk">${md(week)}の週</span><span class="sub">候補なし</span></li>`;
-    const d = new Date(w.date + "T00:00:00"), wd = WD[d.getDay()] + (poll.holidays?.includes(w.date) ? "・祝" : "");
-    const pr = w.pri?.length ? `<span class="tag dark">${esc(w.pri.join("・"))}</span>` : w.near?.length ? `<span class="tag">${esc(w.near.join("・"))} 一部</span>` : "";
-    const pl = av ? ` <span class="sub">📍${w.places + w.roomy}か所</span>` : "";
-    return `<li><span class="wk">${md(week)}の週</span><a href="#d-${w.date}" data-goto="d-${w.date}">${md(w.date)}(${wd}) ${hm(w.start)}〜${hm(w.end)}</a> <b>${w.sure.length}/${everyone}人</b>${w.maybe.length ? `<span class="sub">+${w.maybe.length}</span>` : ""} ${pr}${pl}</li>`;
-  };
-  return `<details class="card weekly" open><summary><b>週ごとのいちばんよい枠</b> <span class="sub">押すとその日へ</span></summary><ul class="plain">${weeks.map(row).join("")}</ul></details>`;
-}
-
 function placesOfDay(av, iso) {
   const step = STEP(), s0 = L.toMin(poll.dayStart), e0 = L.toMin(poll.dayEnd), ex = L.excludedOn(poll, iso).slots;
   const rows = (av.places || []).map(p => {
@@ -946,7 +949,7 @@ $("#reqChips").addEventListener("click", e => {
 // 優先する人：この端末にこの日程調整ごとに覚える（決めるまで何度も見返すので）
 const prKey = `komadori:prio:${pollId}`;
 let prio = new Set(store.get(prKey, []));
-const myPrio = () => adminKeyOk ? prio : new Set();   // 優先する人・週ごとのまとめ・場所の広い順は、管理用の URL で開いたときだけ
+const myPrio = () => adminKeyOk ? prio : new Set();   // 優先する人・場所の広い順・投稿する候補は、管理用の URL で開いたときだけ
 $("#prioChips").addEventListener("click", e => {
   const b = e.target.closest("[data-prio]"); if (!b) return;
   const n = b.dataset.prio; prio.has(n) ? prio.delete(n) : prio.add(n);
@@ -954,9 +957,6 @@ $("#prioChips").addEventListener("click", e => {
   renderPlan();
 });
 $("#plan").addEventListener("click", async e => {
-  // 週ごとのまとめの日付：URL の # を変えずにその日へ（管理用の URL の #admin=… を消さないように）
-  const go = e.target.closest("a[data-goto]");
-  if (go) { e.preventDefault(); document.getElementById(go.dataset.goto)?.scrollIntoView({ behavior: "smooth", block: "start" }); return; }
   const b = e.target.closest("[data-pick]");
   if (b) {
     // 投稿する候補に入れる・外す。場所は、空いている場所の1つめを最初に選んでおく

@@ -347,12 +347,21 @@ export function bestWindows(poll, people, duration, { limit = 20, required = [],
   return picked;
 }
 
-/** その週の月曜日 */
-export const weekStart = iso => addDays(iso, -((weekdayOf(iso) + 6) % 7));
-/** 週ごとのいちばんよい枠：dates（対象の日）の週ごとに [{ week, win }]。win は windows（よい順）の中でその週の最初の枠。ない週は null */
-export function weeklyBest(dates, windows) {
-  const weeks = [...new Set(dates.map(weekStart))].sort();
-  return weeks.map(week => ({ week, win: windows.find(w => weekStart(w.date) === week) || null }));
+/** 月のカレンダー（日曜はじまり）：from〜to の入る月ごとに { ym: "2027-01", weeks: [[iso|null ×7], …] } */
+export function monthCalendar(from, to) {
+  const out = [];
+  for (let ym = from.slice(0, 7); ym <= to.slice(0, 7);) {
+    const first = `${ym}-01`, [y, m] = ym.split("-").map(Number), weeks = [];
+    let week = Array(weekdayOf(first)).fill(null);
+    for (let iso = first; iso.slice(0, 7) === ym; iso = addDays(iso, 1)) {
+      week.push(iso);
+      if (week.length === 7) { weeks.push(week); week = []; }
+    }
+    if (week.length) weeks.push([...week, ...Array(7 - week.length).fill(null)]);
+    out.push({ ym, weeks });
+    ym = m === 12 ? `${y + 1}-01` : `${y}-${pad(m + 1)}`;
+  }
+  return out;
 }
 
 /** 場所を広い順に（人数の上限、なければ下限が大きい順。人数のない場所は後ろ） */

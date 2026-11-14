@@ -212,23 +212,21 @@ test("よい枠：優先する人が来られる枠 → 一部だけ重なる枠
   // アキが来られない 12/6 も消さずに出す（ほかの3人）
   const d6 = w.filter(x => x.date === "2026-12-06");
   assert.ok(d6.length && d6[0].sure.length === 3 && !d6[0].pri.length && !d6[0].near.length);
-  // 週ごとのまとめ（月曜はじまり）：11/30 の週は 12/5 14-16、12/7 の週は 12/12 13-15
-  const wk = L.weeklyBest(L.dateRange(p.from, p.to), w);
-  assert.deepEqual(wk.map(x => [x.week, x.win?.date, x.win && L.fmtMin(x.win.start)]),
-    [["2026-11-30", "2026-12-05", "14:00"], ["2026-12-07", "2026-12-12", "13:00"]]);
   // 優先する人を選ばなければ、今までどおり人数で並べる（pri・near は空）
   const plain = L.bestWindows(p, ppl, 120, { min: 2, limit: Infinity });
   assert.ok(plain.every(x => !x.pri.length && !x.near.length));
   assert.equal(plain[0].sure.length, 3);
 });
 
-test("週のはじまり（月曜）と、場所の広い順", () => {
-  assert.equal(L.weekStart("2026-12-06"), "2026-11-30");   // 日曜は前の週
-  assert.equal(L.weekStart("2026-12-07"), "2026-12-07");
+test("月のカレンダー（日曜はじまり）と、場所の広い順", () => {
+  const cal = L.monthCalendar("2027-01-09", "2027-02-28");
+  assert.deepEqual(cal.map(c => c.ym), ["2027-01", "2027-02"]);
+  assert.deepEqual(cal[0].weeks[0], [null, null, null, null, null, "2027-01-01", "2027-01-02"]);   // 1/1 は金曜
+  assert.equal(cal[0].weeks.at(-1).at(-1), null);                                             // 1/31（日）の週の残りは空き
+  assert.ok(cal.every(c => c.weeks.every(w => w.length === 7)));
+  assert.deepEqual(L.monthCalendar("2026-12-20", "2027-01-05").map(c => c.ym), ["2026-12", "2027-01"]);   // 年をまたぐ
   const ps = [{ id: "a", capacity: { min: 5, max: 8 } }, { id: "b" }, { id: "c", capacity: { min: 7, max: 12 } }, { id: "d", capacity: { min: 10 } }];
   assert.deepEqual(L.widestFirst(ps).map(x => x.id), ["c", "d", "a", "b"]);
-  // 候補のない週は null
-  assert.deepEqual(L.weeklyBest(["2026-12-05"], []), [{ week: "2026-11-30", win: null }]);
 });
 
 test("投稿する候補の文面（◆候補① 日時・場所・メモ）", () => {
