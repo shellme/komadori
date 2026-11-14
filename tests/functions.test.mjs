@@ -110,6 +110,18 @@ test("updatePoll：1日の範囲と時間の刻みを変える。刻みに合わ
   assert.equal((await getDoc(doc(db, "polls", id))).get("dayStart"), "10:30");
 });
 
+test("updatePoll：候補日を入れる（重なりを除いて並べる）。期間の外・形のちがう日は断る", async () => {
+  const p0 = (await getDoc(doc(db, "polls", id))).data();
+  const [a, b] = [p0.from, p0.to];
+  await call("updatePoll")({ pollId: id, key: KEY, patch: { candDates: [b, a, b] } });
+  assert.deepEqual((await getDoc(doc(db, "polls", id))).data().candDates, [a, b].sort());
+  await call("updatePoll")({ pollId: id, key: KEY, patch: { candDates: [] } });
+  assert.deepEqual((await getDoc(doc(db, "polls", id))).data().candDates, []);
+  await assert.rejects(call("updatePoll")({ pollId: id, key: KEY, patch: { candDates: ["2020-01-01"] } }), e => e.code === "functions/invalid-argument");
+  await assert.rejects(call("updatePoll")({ pollId: id, key: KEY, patch: { candDates: ["12/5"] } }), e => e.code === "functions/invalid-argument");
+  await assert.rejects(call("updatePoll")({ pollId: id, key: KEY, patch: { candDates: "2026-12-05" } }), e => e.code === "functions/invalid-argument");
+});
+
 test("期限切れの削除：expireAt を過ぎた調整を回答ごと消す", async () => {
   const old = id.slice(0, 19) + "0";
   const { user } = { user: auth.currentUser };

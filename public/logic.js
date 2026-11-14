@@ -347,12 +347,21 @@ export function bestWindows(poll, people, duration, { limit = 20, required = [],
   return picked;
 }
 
-/** その週の月曜日 */
-export const weekStart = iso => addDays(iso, -((weekdayOf(iso) + 6) % 7));
-/** 週ごとのいちばんよい枠：dates（対象の日）の週ごとに [{ week, win }]。win は windows（よい順）の中でその週の最初の枠。ない週は null */
-export function weeklyBest(dates, windows) {
-  const weeks = [...new Set(dates.map(weekStart))].sort();
-  return weeks.map(week => ({ week, win: windows.find(w => weekStart(w.date) === week) || null }));
+/** 月のカレンダー（日曜はじまり）：from〜to の入る月ごとに { ym: "2027-01", weeks: [[iso|null ×7], …] } */
+export function monthCalendar(from, to) {
+  const out = [];
+  for (let ym = from.slice(0, 7); ym <= to.slice(0, 7);) {
+    const first = `${ym}-01`, [y, m] = ym.split("-").map(Number), weeks = [];
+    let week = Array(weekdayOf(first)).fill(null);
+    for (let iso = first; iso.slice(0, 7) === ym; iso = addDays(iso, 1)) {
+      week.push(iso);
+      if (week.length === 7) { weeks.push(week); week = []; }
+    }
+    if (week.length) weeks.push([...week, ...Array(7 - week.length).fill(null)]);
+    out.push({ ym, weeks });
+    ym = m === 12 ? `${y + 1}-01` : `${y}-${pad(m + 1)}`;
+  }
+  return out;
 }
 
 /** 場所を広い順に（人数の上限、なければ下限が大きい順。人数のない場所は後ろ） */
@@ -364,18 +373,6 @@ export const widestFirst = list => [...list].sort((a, b) =>
 export function slotLine({ date, start, end, title, place }) {
   const t = typeof start === "number" ? `${fmtMin(start)}-${fmtMin(end)}` : `${start}-${end}`;
   return [date, t, title, place ? `@${place}` : ""].filter(Boolean).join(" ");
-}
-
-/** ①②…（20まで。それより先は (21)） */
-export const circled = n => n >= 1 && n <= 20 ? String.fromCodePoint(0x2460 + n - 1) : `(${n})`;
-/** 投稿する候補の文面（LINE や Slack に貼る）：
- *  ◆候補① 1/16(土) 13:00〜15:00
- *  　場所
- *  　メモ（何行でも） */
-export function postText(items, holidays = []) {
-  return items.map((x, i) => [`◆候補${circled(i + 1)} ${fmtDay(x.date, holidays)} ${fmtMin(x.start)}〜${fmtMin(x.end)}`,
-    ...(x.place ? [`　${x.place}`] : []),
-    ...String(x.memo || "").split(/\r?\n/).map(s => s.trim()).filter(Boolean).map(s => `　${s}`)].join("\n")).join("\n\n");
 }
 
 /** AI に相談する用の文面（管理する人が ChatGPT などに貼る）：お願い・条件のひな形・設定・回答・場所・アプリが出した候補。
@@ -396,6 +393,7 @@ export function aiBrief({ poll, people, avail = null, windows = [], conds = {}, 
   L.push(`# 条件（わかるところを書き足してください）`, `- 練習の頻度：`, `- 本番の日：`,
     `- 優先する人（来られる日を先に取りたい人）：${names(conds.priority || [])}`,
     `- 必須の人（来られない枠は選ばない人）：${names(conds.required || [])}`,
+    `- 候補日（管理する人が選んだ日。メンバーにも見せている）：${(poll.candDates || []).filter(d => d >= poll.from && d <= poll.to).map(day).join("、")}`,
     `- 遠くから来る人・部屋の希望：`, `- そのほか：`, ``);
   L.push(`# 日程調整の設定`, `- 期間：${day(poll.from)}〜${day(poll.to)}`,
     `- 対象の日：${(DAY_TYPES[poll.dayType] || DAY_TYPES.all).label}`,
@@ -433,14 +431,14 @@ export function aiBrief({ poll, people, avail = null, windows = [], conds = {}, 
   }
   const cond = [fmtDuration(conds.duration || 120), conds.kindLabel || "", conds.min > 1 ? `${conds.min}人以上` : ""].filter(Boolean).join("・");
   L.push(``, `# アプリが出した候補（日ごとに上位3つ。${cond}）`);
-  const total = people.length;
+  const total = people.length, cand = new Set(poll.candDates || []);
   for (const iso of dates) {
     const ws = windows.filter(w => w.date === iso).slice(0, 3);
     for (const w of ws) {
       const missing = people.map(p => p.name).filter(n => !w.sure.includes(n) && !w.maybe.includes(n));
       const pls = avail ? placesForWindow(avail, iso, w.start, w.end, w.sure.length + w.maybe.length) : null;
       const usable = pls ? [...pls.fit, ...pls.unknown, ...pls.roomy].map(p => p.name) : [];
-      L.push(`- ${day(iso)} ${fmtMin(w.start)}〜${fmtMin(w.end)}：参加 ${w.sure.length}/${total}人（● ${names(w.sure) || "なし"}${w.maybe.length ? `／△ ${names(w.maybe)}` : ""}）`
+      L.push(`- ${day(iso)}${cand.has(iso) ? "［候補日］" : ""} ${fmtMin(w.start)}〜${fmtMin(w.end)}：参加 ${w.sure.length}/${total}人（● ${names(w.sure) || "なし"}${w.maybe.length ? `／△ ${names(w.maybe)}` : ""}）`
         + (missing.length ? `・来られない・未回答：${names(missing)}` : "")
         + (w.near?.length ? `・一部の時間だけ来られる：${names(w.near)}` : "")
         + (pls ? `・空いている場所：${usable.length ? usable.join("、") : "なし"}` : ""));
@@ -448,6 +446,10 @@ export function aiBrief({ poll, people, avail = null, windows = [], conds = {}, 
   }
   return L.join("\n");
 }
+
+/** AI に相談する用のファイルの名前：「本番前の練習_AI相談_2026-11-14.md」（ファイル名に使えない文字は _ に） */
+export const briefFileName = (title, today) =>
+  `${String(title || "日程調整").replace(/[\\/:*?"<>|\s]+/g, "_").replace(/^_+|_+$/g, "").slice(0, 40) || "日程調整"}_AI相談_${today}.md`;
 
 /** 長さ（分）を「2時間」「1時間30分」に */
 export function fmtDuration(min) {

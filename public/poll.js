@@ -5,7 +5,7 @@
 import { db, ready, call, doc, getDoc, setDoc, addDoc, collection, onSnapshot, serverTimestamp } from "./fb.js";
 import * as L from "./logic.js";
 import { JP_HOLIDAYS } from "./holidays.js";
-import { $, esc, copy, randomId, sha256, store, remember, toast, toastUndo, drawEmoji, setFavicon, firstEmoji, growAll, grow } from "./ui.js";
+import { $, esc, copy, saveFile, randomId, sha256, store, remember, toast, toastUndo, drawEmoji, setFavicon, firstEmoji, growAll, grow } from "./ui.js";
 
 const pollId = location.pathname.split("/")[2] || "";
 const adminKey = new URLSearchParams(location.hash.slice(1)).get("admin");
@@ -84,6 +84,7 @@ function renderHeader(isAdmin) {
   $("#excludeBox").hidden = !(poll.exclude || []).length;
   $("#excludeList").innerHTML = (poll.exclude || []).map(x => `<li>${esc(L.exclusionLabel(x, poll.holidays))}</li>`).join("");
   if (isAdmin) { $("#adminBox").hidden = false; adminKeyOk = adminKey; }
+  renderCand();
   $("#share").hidden = !navigator.share;
   const curDur = +$("#dur").value;
   $("#dur").innerHTML = poll.durations.map(d => `<option value="${d}" ${d === curDur ? "selected" : ""}>${L.fmtDuration(d)}</option>`).join("");
@@ -175,7 +176,8 @@ const kindOf = iso => { const w = L.weekdayOf(iso); return w === 0 || w === 6 ||
 
 function dateHead(iso, extra = "") {
   const d = new Date(iso + "T00:00:00"), w = d.getDay(), hol = poll.holidays?.includes(iso);
-  return `<div class="dhead ${w === 0 || hol ? "sun" : w === 6 ? "sat" : ""}"><span class="big">${d.getMonth() + 1}/${d.getDate()}</span><span class="wd">${WD[w]}${hol ? "・祝" : ""}</span>${extra}</div>`;
+  const cand = (poll.candDates || []).includes(iso) ? `<span class="tag dark">📌 候補日</span>` : "";
+  return `<div class="dhead ${w === 0 || hol ? "sun" : w === 6 ? "sat" : ""}"><span class="big">${d.getMonth() + 1}/${d.getDate()}</span><span class="wd">${WD[w]}${hol ? "・祝" : ""}</span>${cand}${extra}</div>`;
 }
 // 1時間ごとの枠にまとめる：[{ h: 13, mins: [780, 810] }]（30分刻みなら :00 と :30、範囲の外の半分は null）
 function hourGroups() {
@@ -555,7 +557,7 @@ function notesHtml(notes) {
   if (notes.length <= 3) return notes.map(one).join("");
   return notes.slice(0, 3).map(one).join("") + `<details class="names"><summary>ほかのコメント ${notes.length - 3}件</summary>${notes.slice(3).map(one).join("")}</details>`;
 }
-function renderPlan(force = false) {
+function renderPlan() {
   renderReqChips();
   $("#peopleCount").textContent = people.length ? `(${people.length})` : "";
   const total = people.length, dur = +$("#dur").value || poll.durations[0], kind = $("#kind").value;
@@ -566,7 +568,8 @@ function renderPlan(force = false) {
   const prog = L.progress(poll, people);
   const full = prog.filter(x => !x.left), partial = prog.filter(x => x.left > 0).sort((a, b) => b.left - a.left);
   const everyone = people.length + ast.pending.length;
-  $("#answered").innerHTML = everyone ? `<p>全部の日に回答した人：<b style="color:var(--ink)">${full.length}/${everyone}人</b>${full.length === everyone ? "（全員そろいました🎉）" : ""}</p>`
+  const asOf = avail ? `<span class="sep">・</span><span>📍 場所の空き${avail.asOf ? ` ${esc(L.fmtAsOf(avail.asOf))}時点` : ""}</span>` : "";
+  $("#answered").innerHTML = everyone ? `<p>全部の日に回答した人 <b>${full.length}/${everyone}人</b>${full.length === everyone ? "（全員そろいました🎉）" : ""}${asOf}</p>`
     + namesLine("まだ残りがある人", partial.map(x => `${x.name}（残り${x.left}日）`), "font-weight:700")
     + namesLine("まだ回答していない人", ast.pending, "color:var(--ng);font-weight:700")
     + (ast.invited && ast.others.length ? namesLine("呼びたい人の一覧にいない回答", ast.others) : "") : "";
@@ -579,7 +582,7 @@ function renderPlan(force = false) {
   const av = avail ? L.filterPlaces(avail, { groups: [...pgroups], q: $("#pq").value }) : null;
   $("#legendFree").hidden = !av;
   $("#placesAsOfNote").hidden = !avail;
-  if (avail) $("#placesAsOfNote").textContent = `📍 場所の空き状況${avail.asOf ? `：${L.fmtAsOf(avail.asOf)}時点` : ""}。予約の前に、必ずそれぞれの場所で空きを確かめてください`;
+  if (avail) $("#placesAsOfNote").textContent = `📍 場所の空き状況${avail.asOf ? `は ${L.fmtAsOf(avail.asOf)} 時点のものです` : "は貼ったときのものです"}。予約の前に、必ずそれぞれの場所で空きを確かめてください`;
   // 優先する人が来られる枠 → 一部だけ重なる枠 → 人数 → 空いている場所の数、の順（L.compareWindows）
   $("#prioBox").hidden = $("#psortBox").hidden = !adminKeyOk;
   const priority = [...myPrio()].filter(n => people.some(p => p.name === n));
@@ -594,8 +597,7 @@ function renderPlan(force = false) {
   $("#planNote").innerHTML = notYet.length ? `<p class="warn">必須の人のうち ${esc(notYet.join("、"))} がまだ回答していないので、その人は数えずに候補を出しています</p>` : "";
   // 候補の「文面をコピー」は、管理用の URL で開いたときだけ出す（決めて知らせる人の操作。回答する人には要らない）
   // 日程の決定はこのアプリでは記録しない（候補をしぼるところまで。決めたら文面をコピーして LINE などで知らせる）
-  const weekly = total && adminKeyOk ? weeklyHtml(L.weeklyBest(days, all.filter(w => days.includes(w.date))), everyone, av) : "";
-  $("#plan").innerHTML = weekly + list.map(({ iso, wins }) => {
+  $("#plan").innerHTML = list.map(({ iso, wins }) => {
     const ngs = people.filter(p => p.days?.[iso]?.ng).map(p => p.name);
     // その日にまだ何も入れていない人（呼びたい人の一覧で、まだ1日も回答していない人も入れる）
     const notYetDay = [...people.filter(p => !L.answeredOn(p.days, iso)).map(p => p.name), ...ast.pending];
@@ -609,7 +611,7 @@ function renderPlan(force = false) {
       return `<span class="slot ${cls}${freeM.has(m) ? " free" : ""}" data-cell="${iso}|${m}" title="${L.fmtMin(m)}〜 参加できる${c.sure.length}人・調整が必要${c.maybe.length}人">${c.sure.length ? `<b>${c.sure.length}</b>` : ""}${c.maybe.length ? `<small class="plus">+${c.maybe.length}</small>` : ""}</span>`;
     });
     return `<div class="card" id="d-${iso}" style="gap:12px">
-      ${dateHead(iso)}
+      ${dateHead(iso, adminKeyOk ? `<button type="button" class="btn sm" data-cand="${iso}" aria-pressed="${isCand(iso)}" style="margin-left:auto">${isCand(iso) ? "✓ 候補日" : "候補日に入れる"}</button>` : "")}
       <div aria-label="時間ごとの参加人数">${cells}</div>
       <p class="sub cellinfo" aria-live="polite" hidden></p>
       ${namesLine("× 参加できない", ngs, "font-size:13px;font-weight:700;color:var(--ng)")}
@@ -623,9 +625,6 @@ function renderPlan(force = false) {
         ${namesLine(`<b style="color:var(--maybe)">△</b> 調整が必要`, w.maybe, "font-size:13px")}
         ${namesLine("この時間は参加できない", missing(w), "", "sub")}
         ${namesLine("まだ回答していない", notYetOn(w.date), "", "sub")}
-        ${adminKeyOk ? `<div class="actions">
-          <button type="button" class="btn sm" data-pick="${iso}|${w.start}|${w.end}" aria-pressed="${picked(iso, w.start, w.end)}">${picked(iso, w.start, w.end) ? "✓ 投稿する候補に入れた" : "投稿する候補に入れる"}</button>
-        </div>` : ""}
       </div>`).join("") : total ? `<p class="sub">候補になる時間帯がありません</p>` : ""}</div>
       ${av ? placesOfDay(av, iso) : ""}
     </div>`;
@@ -634,53 +633,65 @@ function renderPlan(force = false) {
   drawEmoji($("#plan"));
   lastWins = all; lastEveryone = everyone; lastAv = av;
   lastDays = days; lastConds = { duration: dur, kindLabel: txt("#kind"), min, required, priority };
-  $("#aiBox").hidden = !adminKeyOk || !total;
-  renderPicks(force);
 }
-// ---------- 投稿する候補（管理用の URL で開いたときだけ） ----------
-// 候補を選んで、LINE や Slack に貼る文面（◆候補① 日時・場所・メモ）をまとめて作る。この端末にこの日程調整ごとに覚える
-const pkKey = `komadori:picks:${pollId}`;
-let picks = (store.get(pkKey, []) || []).filter(x => x && L.isIso(x.date) && Number.isInteger(x.start) && Number.isInteger(x.end));
 let lastWins = [], lastEveryone = 0, lastAv = null, lastDays = [], lastConds = {};
 // AI に相談する用にコピー（管理用の URL だけ）。候補と場所は、いまの条件で出したもの
-$("#aiCopy").addEventListener("click", () => copy(L.aiBrief({ poll, people, avail: lastAv, windows: lastWins,
-  conds: { ...lastConds, dates: lastDays }, anonymize: $("#aiAnon").checked }), "AIに相談する用の文面をコピーしました"));
-const savePicks = () => store.set(pkKey, picks);
-const picked = (date, start, end) => picks.some(x => x.date === date && x.start === start && x.end === end);
-function renderPicks(force = false) {
-  const box = $("#picks");
-  box.hidden = !adminKeyOk || !picks.length;
-  if (box.hidden) { box.innerHTML = ""; return; }
-  if (!force && box.contains(document.activeElement)) return;   // 書いている途中は描き直さない（ほかの人の回答が届いたときなど）
-  box.innerHTML = `<div class="card picks" style="gap:10px"><div><b>投稿する候補 ${picks.length}件</b> <span class="sub">上から ①②…。LINE や Slack に貼る文面にします</span></div>
-    <ol class="plain">${picks.map((x, i) => {
-      const w = lastWins.find(v => v.date === x.date && v.start === x.start && v.end === x.end);
-      const opts = lastAv && w ? fitPlaces(lastAv, x.date, w).map(p => p.name) : [];
-      if (x.place && !opts.includes(x.place)) opts.unshift(x.place);
-      return `<li class="pick" data-i="${i}">
-        <div class="dhead"><b>${L.circled(i + 1)}</b><span class="t">${esc(L.fmtDay(x.date, poll.holidays || []))} ${hm(x.start)}〜${hm(x.end)}</span>${w ? `<span class="sub">${w.sure.length}/${lastEveryone}人${w.maybe.length ? `（+${w.maybe.length}）` : ""}</span>` : ""}</div>
-        <label class="field"><span class="label">場所</span><select data-pk="place"><option value="">場所を書かない</option>${opts.map(n => `<option ${n === x.place ? "selected" : ""}>${esc(n)}</option>`).join("")}</select></label>
-        <label class="field"><span class="label">メモ <span class="sub">任意。例：※今すぐ予約可</span></span><textarea data-pk="memo" rows="1" maxlength="300">${esc(x.memo || "")}</textarea></label>
-        <div class="actions">${i ? `<button type="button" class="btn sm" data-pkact="up">↑ 上へ</button>` : ""}<button type="button" class="btn sm" data-pkact="del">外す</button></div>
-      </li>`;
-    }).join("")}</ol>
-    <div class="actions"><button type="button" class="btn primary" data-pkact="copy">文面をコピー</button><button type="button" class="btn sm" data-pkact="clear">全部外す</button></div></div>`;
-  growAll(box);
+const brief = () => L.aiBrief({ poll, people, avail: lastAv, windows: lastWins, conds: { ...lastConds, dates: lastDays }, anonymize: $("#aiAnon").checked });
+$("#openAi").addEventListener("click", () => $("#aiDlg").showModal());
+$("#aiCopy").addEventListener("click", () => copy(brief(), "AIに相談する用の文面をコピーしました"));
+// 長いときは、Markdown のファイルで保存して AI に添付する
+$("#aiSave").addEventListener("click", () => {
+  const d = new Date(), today = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  saveFile(L.briefFileName(poll.title, today), brief() + "\n");
+  toast("ファイルを保存しました");
+});
+// ---------- 候補日（管理する人が選び、回答する人にも見せる） ----------
+// 日程調整のあいだに「この日は空けておこう」と思ってもらうため。時間帯は決めない（あとで調整するので日だけ）
+const candDates = () => (poll.candDates || []).filter(d => d >= poll.from && d <= poll.to);
+const isCand = iso => candDates().includes(iso);
+// 期間の下の1行（「📌 候補日 1/16(土)・2/6(土)　カレンダー ›」）。カレンダーはダイアログで開く
+function renderCand() {
+  const line = $("#candLine"), ds = candDates(), hol = poll.holidays || [];
+  line.hidden = !ds.length && !adminKeyOk;
+  line.innerHTML = ds.length
+    ? `<b>📌 候補日</b> <span class="candlist">${esc(ds.map(d => L.fmtDay(d, hol)).join("・"))}</span> <button type="button" class="linkbtn" id="candOpen">カレンダー ›</button>`
+    : `<b>📌 候補日</b> <span class="sub">まだありません。みんなの状況の日ごとの「候補日に入れる」で選ぶと、ここに出ます（回答する人にも見えます）</span>`;
+  if ($("#candDlg").open) $("#candBody").innerHTML = candDlgHtml();
 }
-$("#picks").addEventListener("input", e => {
-  const li = e.target.closest("[data-i]"), k = e.target.dataset.pk; if (!li || !k) return;
-  picks[+li.dataset.i][k] = e.target.value; savePicks();
-  if (k === "memo") grow(e.target);
+const candDlgHtml = () => `<p class="sub">この中から日程を決める予定です。できるだけ予定を空けておいてください（時間帯はあとで決めます）。日付を押すと、その日へ移ります</p>${candCalendar(candDates())}`;
+$("#candLine").addEventListener("click", e => {
+  if (!e.target.closest("#candOpen")) return;
+  $("#candBody").innerHTML = candDlgHtml(); $("#candDlg").showModal();
 });
-$("#picks").addEventListener("click", e => {
-  const b = e.target.closest("[data-pkact]"); if (!b) return;
-  const act = b.dataset.pkact, i = +b.closest("[data-i]")?.dataset.i;
-  if (act === "copy") { copy(L.postText(picks, poll.holidays || []), "文面をコピーしました"); return; }
-  if (act === "up") [picks[i - 1], picks[i]] = [picks[i], picks[i - 1]];
-  if (act === "del") picks.splice(i, 1);
-  if (act === "clear") { const before = picks; picks = []; savePicks(); renderPlan(true); toastUndo("投稿する候補を全部外しました", () => { picks = before; savePicks(); renderPlan(true); }); return; }
-  savePicks(); renderPlan(true);
+// 候補日を月のカレンダーに置く（練習の間隔・頻度をつかむため）。押すとその日へ
+function candCalendar(ds) {
+  const hol = poll.holidays || [], on = new Set(ds);
+  const head = [...WD].map((w, i) => `<span class="pc-h ${i === 0 ? "sun" : i === 6 ? "sat" : ""}">${w}</span>`).join("");
+  return `<div class="pcal">${L.monthCalendar(poll.from, poll.to).map(({ ym, weeks }) => `<div class="pc-m"><b>${+ym.slice(5)}月</b><div class="pc-g">${head}${weeks.flat().map(iso => {
+    if (!iso) return `<span></span>`;
+    const w = L.weekdayOf(iso), d = +iso.slice(8);
+    if (on.has(iso)) return `<a class="pc-d on" href="#d-${iso}" data-goto="${iso}" title="候補日 ${L.fmtDay(iso, hol)}">${d}</a>`;
+    const cls = [iso < poll.from || iso > poll.to || L.excludedOn(poll, iso).all ? "out" : "",   // 期間の外・対象でない日は薄く
+      w === 0 || hol.includes(iso) ? "sun" : w === 6 ? "sat" : ""].filter(Boolean).join(" ");
+    return `<span class="pc-d ${cls}">${d}</span>`;
+  }).join("")}</div></div>`).join("")}</div>`;
+}
+$("#candDlg").addEventListener("click", e => {
+  // カレンダーの日：ダイアログを閉じて、いま見ている画面のその日へ（URL の # は変えない。管理用の URL の #admin=… を消さないように）
+  const go = e.target.closest("a[data-goto]"); if (!go) return;
+  e.preventDefault(); $("#candDlg").close();
+  const iso = go.dataset.goto;
+  [document.getElementById(`d-${iso}`), document.querySelector(`#days [data-date="${iso}"]`)].find(el => el?.offsetParent)?.scrollIntoView({ behavior: "smooth", block: "start" });
 });
+// 候補日に入れる・外す（管理用の URL だけ。すぐ画面に出し、保存に失敗したら元に戻す）
+async function toggleCand(iso) {
+  const before = poll.candDates || [], next = isCand(iso) ? candDates().filter(d => d !== iso) : [...candDates(), iso].sort();
+  poll = { ...poll, candDates: next };
+  renderPlan(); renderDays();
+  try { await call("updatePoll", { pollId, key: adminKeyOk, patch: { candDates: next } }); toast(next.includes(iso) ? "候補日に入れました（みんなに見えます）" : "候補日から外しました"); }
+  catch (err) { poll = { ...poll, candDates: before }; renderPlan(); renderDays(); toast(`保存できませんでした：${err.message || err}`); }
+}
+
 // 候補の枠に空いている場所：人数に合う場所 → 人数の決まりがない場所 → 広めの場所の順。入りきらない場所は数だけ出す
 // 人数は、その枠に来られる人（参加できる＋調整が必要）
 // 「広い順」を選んでいれば、人数に合うかに関わらず広い場所から（遠くから来る人がいる日など）
@@ -707,20 +718,6 @@ function prioLine(w) {
     : `<span class="pill todo">${esc(n)}：来られない</span>`;
   return `<p class="chips" style="gap:6px">${names.map(one).join("")}</p>`;
 }
-// 週ごとのいちばんよい枠（押すとその日へ）。頻度を決めるときに、週ごとに1つずつ見られるように
-function weeklyHtml(weeks, everyone, av) {
-  if (weeks.length < 2) return "";
-  const md = iso => `${+iso.slice(5, 7)}/${+iso.slice(8)}`;
-  const row = ({ week, win: w }) => {
-    if (!w) return `<li><span class="wk">${md(week)}の週</span><span class="sub">候補なし</span></li>`;
-    const d = new Date(w.date + "T00:00:00"), wd = WD[d.getDay()] + (poll.holidays?.includes(w.date) ? "・祝" : "");
-    const pr = w.pri?.length ? `<span class="tag dark">${esc(w.pri.join("・"))}</span>` : w.near?.length ? `<span class="tag">${esc(w.near.join("・"))} 一部</span>` : "";
-    const pl = av ? ` <span class="sub">📍${w.places + w.roomy}か所</span>` : "";
-    return `<li><span class="wk">${md(week)}の週</span><a href="#d-${w.date}" data-goto="d-${w.date}">${md(w.date)}(${wd}) ${hm(w.start)}〜${hm(w.end)}</a> <b>${w.sure.length}/${everyone}人</b>${w.maybe.length ? `<span class="sub">+${w.maybe.length}</span>` : ""} ${pr}${pl}</li>`;
-  };
-  return `<details class="card weekly" open><summary><b>週ごとのいちばんよい枠</b> <span class="sub">押すとその日へ</span></summary><ul class="plain">${weeks.map(row).join("")}</ul></details>`;
-}
-
 function placesOfDay(av, iso) {
   const step = STEP(), s0 = L.toMin(poll.dayStart), e0 = L.toMin(poll.dayEnd), ex = L.excludedOn(poll, iso).slots;
   const rows = (av.places || []).map(p => {
@@ -940,7 +937,7 @@ $("#reqChips").addEventListener("click", e => {
 // 優先する人：この端末にこの日程調整ごとに覚える（決めるまで何度も見返すので）
 const prKey = `komadori:prio:${pollId}`;
 let prio = new Set(store.get(prKey, []));
-const myPrio = () => adminKeyOk ? prio : new Set();   // 優先する人・週ごとのまとめ・場所の広い順は、管理用の URL で開いたときだけ
+const myPrio = () => adminKeyOk ? prio : new Set();   // 優先する人・場所の広い順・候補日を選ぶのは、管理用の URL で開いたときだけ
 $("#prioChips").addEventListener("click", e => {
   const b = e.target.closest("[data-prio]"); if (!b) return;
   const n = b.dataset.prio; prio.has(n) ? prio.delete(n) : prio.add(n);
@@ -948,23 +945,8 @@ $("#prioChips").addEventListener("click", e => {
   renderPlan();
 });
 $("#plan").addEventListener("click", async e => {
-  // 週ごとのまとめの日付：URL の # を変えずにその日へ（管理用の URL の #admin=… を消さないように）
-  const go = e.target.closest("a[data-goto]");
-  if (go) { e.preventDefault(); document.getElementById(go.dataset.goto)?.scrollIntoView({ behavior: "smooth", block: "start" }); return; }
-  const b = e.target.closest("[data-pick]");
-  if (b) {
-    // 投稿する候補に入れる・外す。場所は、空いている場所の1つめを最初に選んでおく
-    const [date, s, en] = b.dataset.pick.split("|"), start = +s, end = +en;
-    const i = picks.findIndex(x => x.date === date && x.start === start && x.end === end);
-    if (i >= 0) picks.splice(i, 1);
-    else {
-      const av = avail ? L.filterPlaces(avail, { groups: [...pgroups], q: $("#pq").value }) : null;
-      const w = lastWins.find(x => x.date === date && x.start === start && x.end === end);
-      picks.push({ date, start, end, place: av && w ? (fitPlaces(av, date, w)[0]?.name || "") : "", memo: "" });
-    }
-    savePicks(); renderPlan(true);
-    return;
-  }
+  const b = e.target.closest("[data-cand]");
+  if (b) { toggleCand(b.dataset.cand); return; }
   const c = e.target.closest("[data-cell]"); if (!c) return;
   const [iso, m] = c.dataset.cell.split("|"), cell = L.grid(poll, people)[iso][m];
   const info = c.closest(".card").querySelector(".cellinfo");

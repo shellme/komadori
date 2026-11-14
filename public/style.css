@@ -79,7 +79,7 @@ textarea { min-height: 96px; resize: vertical; }
 /* 補足：印なしの小さい灰色の文字（ⓘ は小さいと①に見えるのでやめた。docs/ui-rules.md） */
 .empty { border: 1.5px dashed var(--line); border-radius: 14px; padding: 12px 14px; color: var(--muted); font-size: 13px; text-align: center; list-style: none; }
 .quote { border-radius: 12px; background: var(--chip); padding: 8px 14px; font-size: 14px; white-space: pre-wrap; overflow-wrap: anywhere; }
-.adm { border: 1.5px dashed var(--line); border-radius: 16px; padding: 14px; display: grid; gap: 8px; }
+.adm { border: 1.5px dashed var(--line); border-radius: 16px; padding: 10px 12px; display: grid; gap: 6px; margin-top: 12px; }
 .errors { color: var(--ng); font-size: 13px; font-weight: 700; }
 .errors:empty { display: none; }
 ul.plain { list-style: none; padding: 0; margin: 0; }
@@ -260,9 +260,13 @@ dialog::backdrop { background: rgb(0 0 0 / .45); }
 .dlgfoot { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; border-top: 1.5px solid var(--line); padding-top: 16px; }
 
 /* みんなの状況：条件 */
-.condsum { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; min-height: 36px; font-size: 14px; list-style: none; }
+/* 「条件」と灰色の文字は大きさがちがうので、上下中央ではなく文字の下の線（ベースライン）でそろえる（中央だと少しずれて見える）。高さは上下の余白でとる */
+.condsum { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 8px; padding: 7px 0; font-size: 14px; list-style: none; cursor: pointer; }
 .condsum::-webkit-details-marker { display: none; }
-.condsum .change { margin-left: auto; font-size: 13px; font-weight: 700; color: var(--link); display: inline-flex; align-items: center; gap: 2px; }
+/* 開け閉めするカード（条件）：閉じたときに中身のぶんの gap が残らないように gap は 0、上下は詰める。中身は包んだ要素の margin で離す */
+details.card { gap: 0; }
+
+.condsum .change { align-self: center; margin-left: auto; font-size: 13px; font-weight: 700; color: var(--link); display: inline-flex; align-items: center; gap: 2px; }
 /* 開け閉めできることがわかるように、下向きの印（開いているときは上向き）と「変更」「閉じる」 */
 .condsum .chev { flex: none; transition: transform .15s; }
 details[open] > .condsum .chev { transform: rotate(180deg); }
@@ -490,16 +494,27 @@ div.howto .menu .pop { left: 0; right: auto; }
 
 /* 優先する人のようす（候補の中） */
 .pill.maybe { background: var(--maybe); color: #111; }
-/* 週ごとのいちばんよい枠 */
-.weekly > summary { cursor: pointer; }
-.weekly ul.plain { margin-top: 8px; }
-.weekly li { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 8px; padding: 6px 0; font-size: 14px; }
-.weekly .wk { min-width: 3.6em; color: var(--muted); font-size: 12px; font-weight: 700; }
-.weekly a { font-family: var(--f-num); font-weight: 700; color: var(--ink); }
-/* 投稿する候補 */
-.picks { border: 2px solid var(--ink); }
-.picks ol.plain > li.pick { display: grid; gap: 8px; padding: 10px 0; border-top: 1px solid var(--line); }
-.picks .dhead b { font-size: 18px; }
-/* AI に相談する */
-.aibox > summary { cursor: pointer; }
-.aibox[open] { gap: 10px; }
+/* 候補日（期間の下の1行と、カレンダーのダイアログ） */
+.candline { margin: 8px 0 0; font-size: 14px; display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 8px; }
+.candlist { font-family: var(--f-num); font-weight: 700; }
+.linkbtn { border: 0; background: none; padding: 0; color: var(--link); font: inherit; font-weight: 700; cursor: pointer; }
+.pcal { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 12px 20px; }
+.pc-m > b { font-size: 14px; }
+.pc-g { display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; margin-top: 4px; text-align: center; }
+.pc-h { font-size: 11px; font-weight: 700; color: var(--muted); }
+.pc-h.sun, .pc-d.sun { color: var(--ng); } .pc-h.sat, .pc-d.sat { color: #2b6cd4; }
+.pc-d { display: flex; align-items: center; justify-content: center; min-height: 30px; border-radius: 8px; font-family: var(--f-num); font-size: 12px; color: var(--ink); text-decoration: none; }
+.pc-d.out { opacity: .35; }
+.pc-d.on { background: var(--ink); color: var(--bg); font-weight: 700; }
+/* みんなの状況：状況の1行と、マスと ★ の見方 */
+.statusline { margin: 0 2px 10px; font-size: 13px; color: var(--muted); display: grid; gap: 4px; }
+.statusline p { margin: 0; }
+.statusline b { color: var(--ink); font-family: var(--f-num); }
+.statusline .sep { margin: 0 2px; }
+.howbox { margin: 0 2px 12px; font-size: 13px; color: var(--muted); }
+.howbox > summary { cursor: pointer; font-weight: 700; color: var(--link); list-style: none; width: fit-content; }
+.howbox > summary::-webkit-details-marker { display: none; }
+.howbox .howbody { display: grid; gap: 6px; margin-top: 8px; }
+.howbox .howbody p { margin: 0; }
+/* 日へ移ったとき、上に貼りつく切り替え（.modes）に日付が隠れないように */
+#plan > .card[id^="d-"], #days > .card[data-date] { scroll-margin-top: 72px; }

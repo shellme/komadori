@@ -18,6 +18,13 @@ export async function copy(text, msg = "コピーしました") {
   toast(msg);
 }
 
+/** 文字をファイルにして保存する（スマホでは共有や「ファイルに保存」になる） */
+export function saveFile(name, text, type = "text/markdown") {
+  const url = URL.createObjectURL(new Blob([text], { type: `${type};charset=utf-8` }));
+  const a = Object.assign(document.createElement("a"), { href: url, download: name });
+  document.body.append(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
 export function randomId(n) {
   const abc = "abcdefghijkmnpqrstuvwxyz23456789";
   const b = crypto.getRandomValues(new Uint8Array(n));

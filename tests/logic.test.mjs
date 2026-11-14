@@ -212,34 +212,21 @@ test("よい枠：優先する人が来られる枠 → 一部だけ重なる枠
   // アキが来られない 12/6 も消さずに出す（ほかの3人）
   const d6 = w.filter(x => x.date === "2026-12-06");
   assert.ok(d6.length && d6[0].sure.length === 3 && !d6[0].pri.length && !d6[0].near.length);
-  // 週ごとのまとめ（月曜はじまり）：11/30 の週は 12/5 14-16、12/7 の週は 12/12 13-15
-  const wk = L.weeklyBest(L.dateRange(p.from, p.to), w);
-  assert.deepEqual(wk.map(x => [x.week, x.win?.date, x.win && L.fmtMin(x.win.start)]),
-    [["2026-11-30", "2026-12-05", "14:00"], ["2026-12-07", "2026-12-12", "13:00"]]);
   // 優先する人を選ばなければ、今までどおり人数で並べる（pri・near は空）
   const plain = L.bestWindows(p, ppl, 120, { min: 2, limit: Infinity });
   assert.ok(plain.every(x => !x.pri.length && !x.near.length));
   assert.equal(plain[0].sure.length, 3);
 });
 
-test("週のはじまり（月曜）と、場所の広い順", () => {
-  assert.equal(L.weekStart("2026-12-06"), "2026-11-30");   // 日曜は前の週
-  assert.equal(L.weekStart("2026-12-07"), "2026-12-07");
+test("月のカレンダー（日曜はじまり）と、場所の広い順", () => {
+  const cal = L.monthCalendar("2027-01-09", "2027-02-28");
+  assert.deepEqual(cal.map(c => c.ym), ["2027-01", "2027-02"]);
+  assert.deepEqual(cal[0].weeks[0], [null, null, null, null, null, "2027-01-01", "2027-01-02"]);   // 1/1 は金曜
+  assert.equal(cal[0].weeks.at(-1).at(-1), null);                                             // 1/31（日）の週の残りは空き
+  assert.ok(cal.every(c => c.weeks.every(w => w.length === 7)));
+  assert.deepEqual(L.monthCalendar("2026-12-20", "2027-01-05").map(c => c.ym), ["2026-12", "2027-01"]);   // 年をまたぐ
   const ps = [{ id: "a", capacity: { min: 5, max: 8 } }, { id: "b" }, { id: "c", capacity: { min: 7, max: 12 } }, { id: "d", capacity: { min: 10 } }];
   assert.deepEqual(L.widestFirst(ps).map(x => x.id), ["c", "d", "a", "b"]);
-  // 候補のない週は null
-  assert.deepEqual(L.weeklyBest(["2026-12-05"], []), [{ week: "2026-11-30", win: null }]);
-});
-
-test("投稿する候補の文面（◆候補① 日時・場所・メモ）", () => {
-  const items = [
-    { date: "2026-12-19", start: 1140, end: 1260, place: "ノア中野 Cst 28帖", memo: "※今すぐ予約可" },
-    { date: "2026-12-13", start: 630, end: 750, place: "", memo: "※会員証ある人に予約お願いする\n\n（早起きが苦手なら後回し）" },
-  ];
-  assert.equal(L.postText(items, []), "◆候補① 12/19(土) 19:00〜21:00\n　ノア中野 Cst 28帖\n　※今すぐ予約可\n\n◆候補② 12/13(日) 10:30〜12:30\n　※会員証ある人に予約お願いする\n　（早起きが苦手なら後回し）");
-  assert.equal(L.postText([{ date: "2027-02-11", start: 780, end: 900 }], ["2027-02-11"]), "◆候補① 2/11(木・祝) 13:00〜15:00");
-  assert.equal(L.circled(20), "⑳");
-  assert.equal(L.circled(21), "(21)");
 });
 
 test("AI に相談する用の文面：設定・回答・場所・アプリの候補", () => {
@@ -256,6 +243,8 @@ test("AI に相談する用の文面：設定・回答・場所・アプリの�
   const t = L.aiBrief({ poll: p, people: ppl, avail, windows, conds: { duration: 120, kindLabel: "土日祝", priority: ["アキ"] } });
   assert.match(t, /^# お願い/);
   assert.match(t, /- 優先する人（来られる日を先に取りたい人）：アキ\n/);
+  assert.match(L.aiBrief({ poll: { ...p, candDates: ["2026-12-05", "2027-01-01"] }, people: ppl }), /- 候補日（管理する人が選んだ日。メンバーにも見せている）：12\/5\(土\)\n/);   // 期間の外は出さない
+  assert.match(L.aiBrief({ poll: { ...p, candDates: ["2026-12-05"] }, people: ppl, windows }), /- 12\/5\(土\)［候補日］ 13:00〜15:00：/);   // アプリの候補にも印
   assert.match(t, /- 対象の日：土日祝だけ/);
   assert.match(t, /  - 12\/6 18:00-20:00/);                          // 使わない時間帯
   assert.match(t, /## アキ\n- 12\/5\(土\) ● 13:00-15:00 💬 15時に出ます\n- 12\/6\(日\) ×/);
@@ -269,6 +258,9 @@ test("AI に相談する用の文面：設定・回答・場所・アプリの�
   assert.doesNotMatch(anon, /アキ|ベン|チカ/);
   assert.match(anon, /## メンバーA\n/);
   assert.match(anon, /優先する人（来られる日を先に取りたい人）：メンバーA/);
+  // ファイルの名前：使えない文字と空白は _ に
+  assert.equal(L.briefFileName("本番前の練習 2/6:新宿", "2026-11-14"), "本番前の練習_2_6_新宿_AI相談_2026-11-14.md");
+  assert.equal(L.briefFileName("", "2026-11-14"), "日程調整_AI相談_2026-11-14.md");
 });
 
 test("候補の枠の文面", () => {

@@ -117,6 +117,12 @@ exports.updatePoll = onCall({ region: REGION }, async req => {
     if (durs.some(d => d % step)) throw new HttpsError("invalid-argument", "集まりたい長さが刻みと合いません");
     Object.assign(out, { step, dayStart: fmt(s0), dayEnd: fmt(e0) });
   }
+  if ("candDates" in patch) {
+    // 候補日：管理する人が選んだ日（回答する人にも見せる）。期間の中の日だけ
+    const v = patch.candDates, from = out.from || poll.from, to = out.to || poll.to;
+    if (!Array.isArray(v) || v.length > 40 || v.some(d => !DATE.test(d || "") || d < from || d > to)) throw new HttpsError("invalid-argument", "候補日の形がちがいます");
+    out.candDates = [...new Set(v)].sort();
+  }
   if (!Object.keys(out).length) throw new HttpsError("invalid-argument", "変えるものがありません");
   await ref.update(out);
   return { ok: true };
