@@ -49,6 +49,8 @@
       </div>
     </div>
 
+    <div id="candBox" hidden></div>
+
     <div class="modes" role="tablist">
       <button role="tab" id="tabAnswer" aria-selected="true" aria-controls="answer">自分の時間を回答</button>
       <button role="tab" id="tabResult" aria-selected="false" aria-controls="result">みんなの状況 <span id="peopleCount"></span></button>
@@ -116,10 +118,9 @@
         <label class="check"><input type="checkbox" id="aiAnon">名前を「メンバーA・B…」に置き換える</label>
         <div class="actions"><button type="button" class="btn primary" id="aiCopy">AIに相談する用にコピー</button><button type="button" class="btn" id="aiSave">ファイルで保存（.md）</button></div>
         <p class="sub">長くて貼りにくいときは、ファイルで保存して AI に添付してください。</p>
-        <p class="sub">AIが選んだ候補は、この画面の候補と見比べてから「投稿する候補」に入れて投稿してください。</p>
+        <p class="sub">AIが選んだ候補は、この画面の候補と見比べてから投稿してください。よさそうな日は「候補日に入れる」で、みんなにも見せられます。</p>
         </div>
       </details>
-      <div id="picks" hidden></div>
       <div id="plan"></div>
     </section>
   </div>

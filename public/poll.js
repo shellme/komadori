@@ -175,7 +175,8 @@ const kindOf = iso => { const w = L.weekdayOf(iso); return w === 0 || w === 6 ||
 
 function dateHead(iso, extra = "") {
   const d = new Date(iso + "T00:00:00"), w = d.getDay(), hol = poll.holidays?.includes(iso);
-  return `<div class="dhead ${w === 0 || hol ? "sun" : w === 6 ? "sat" : ""}"><span class="big">${d.getMonth() + 1}/${d.getDate()}</span><span class="wd">${WD[w]}${hol ? "・祝" : ""}</span>${extra}</div>`;
+  const cand = (poll.candDates || []).includes(iso) ? `<span class="tag dark">📌 候補日</span>` : "";
+  return `<div class="dhead ${w === 0 || hol ? "sun" : w === 6 ? "sat" : ""}"><span class="big">${d.getMonth() + 1}/${d.getDate()}</span><span class="wd">${WD[w]}${hol ? "・祝" : ""}</span>${cand}${extra}</div>`;
 }
 // 1時間ごとの枠にまとめる：[{ h: 13, mins: [780, 810] }]（30分刻みなら :00 と :30、範囲の外の半分は null）
 function hourGroups() {
@@ -555,7 +556,8 @@ function notesHtml(notes) {
   if (notes.length <= 3) return notes.map(one).join("");
   return notes.slice(0, 3).map(one).join("") + `<details class="names"><summary>ほかのコメント ${notes.length - 3}件</summary>${notes.slice(3).map(one).join("")}</details>`;
 }
-function renderPlan(force = false) {
+function renderPlan() {
+  renderCand();
   renderReqChips();
   $("#peopleCount").textContent = people.length ? `(${people.length})` : "";
   const total = people.length, dur = +$("#dur").value || poll.durations[0], kind = $("#kind").value;
@@ -608,7 +610,7 @@ function renderPlan(force = false) {
       return `<span class="slot ${cls}${freeM.has(m) ? " free" : ""}" data-cell="${iso}|${m}" title="${L.fmtMin(m)}〜 参加できる${c.sure.length}人・調整が必要${c.maybe.length}人">${c.sure.length ? `<b>${c.sure.length}</b>` : ""}${c.maybe.length ? `<small class="plus">+${c.maybe.length}</small>` : ""}</span>`;
     });
     return `<div class="card" id="d-${iso}" style="gap:12px">
-      ${dateHead(iso)}
+      ${dateHead(iso, adminKeyOk ? `<button type="button" class="btn sm" data-cand="${iso}" aria-pressed="${isCand(iso)}" style="margin-left:auto">${isCand(iso) ? "✓ 候補日" : "候補日に入れる"}</button>` : "")}
       <div aria-label="時間ごとの参加人数">${cells}</div>
       <p class="sub cellinfo" aria-live="polite" hidden></p>
       ${namesLine("× 参加できない", ngs, "font-size:13px;font-weight:700;color:var(--ng)")}
@@ -622,9 +624,6 @@ function renderPlan(force = false) {
         ${namesLine(`<b style="color:var(--maybe)">△</b> 調整が必要`, w.maybe, "font-size:13px")}
         ${namesLine("この時間は参加できない", missing(w), "", "sub")}
         ${namesLine("まだ回答していない", notYetOn(w.date), "", "sub")}
-        ${adminKeyOk ? `<div class="actions">
-          <button type="button" class="btn sm" data-pick="${iso}|${w.start}|${w.end}" aria-pressed="${picked(iso, w.start, w.end)}">${picked(iso, w.start, w.end) ? "✓ 投稿する候補に入れた" : "投稿する候補に入れる"}</button>
-        </div>` : ""}
       </div>`).join("") : total ? `<p class="sub">候補になる時間帯がありません</p>` : ""}</div>
       ${av ? placesOfDay(av, iso) : ""}
     </div>`;
@@ -634,12 +633,7 @@ function renderPlan(force = false) {
   lastWins = all; lastEveryone = everyone; lastAv = av;
   lastDays = days; lastConds = { duration: dur, kindLabel: txt("#kind"), min, required, priority };
   $("#aiBox").hidden = !adminKeyOk || !total;
-  renderPicks(force);
 }
-// ---------- 投稿する候補（管理用の URL で開いたときだけ） ----------
-// 候補を選んで、LINE や Slack に貼る文面（◆候補① 日時・場所・メモ）をまとめて作る。この端末にこの日程調整ごとに覚える
-const pkKey = `komadori:picks:${pollId}`;
-let picks = (store.get(pkKey, []) || []).filter(x => x && L.isIso(x.date) && Number.isInteger(x.start) && Number.isInteger(x.end));
 let lastWins = [], lastEveryone = 0, lastAv = null, lastDays = [], lastConds = {};
 // AI に相談する用にコピー（管理用の URL だけ）。候補と場所は、いまの条件で出したもの
 const brief = () => L.aiBrief({ poll, people, avail: lastAv, windows: lastWins, conds: { ...lastConds, dates: lastDays }, anonymize: $("#aiAnon").checked });
@@ -650,60 +644,52 @@ $("#aiSave").addEventListener("click", () => {
   saveFile(L.briefFileName(poll.title, today), brief() + "\n");
   toast("ファイルを保存しました");
 });
-const savePicks = () => store.set(pkKey, picks);
-const picked = (date, start, end) => picks.some(x => x.date === date && x.start === start && x.end === end);
-function renderPicks(force = false) {
-  const box = $("#picks");
-  box.hidden = !adminKeyOk || !picks.length;
+// ---------- 候補日（管理する人が選び、回答する人にも見せる） ----------
+// 日程調整のあいだに「この日は空けておこう」と思ってもらうため。時間帯は決めない（あとで調整するので日だけ）
+const candDates = () => (poll.candDates || []).filter(d => d >= poll.from && d <= poll.to);
+const isCand = iso => candDates().includes(iso);
+function renderCand() {
+  const box = $("#candBox"), ds = candDates();
+  box.hidden = !ds.length && !adminKeyOk;
   if (box.hidden) { box.innerHTML = ""; return; }
-  if (!force && box.contains(document.activeElement)) return;   // 書いている途中は描き直さない（ほかの人の回答が届いたときなど）
-  box.innerHTML = `<div class="card picks" style="gap:10px"><div><b>投稿する候補 ${picks.length}件</b> <span class="sub">上から ①②…。LINE や Slack に貼る文面にします</span></div>
-    ${pickCalendar()}
-    <ol class="plain">${picks.map((x, i) => {
-      const w = lastWins.find(v => v.date === x.date && v.start === x.start && v.end === x.end);
-      const opts = lastAv && w ? fitPlaces(lastAv, x.date, w).map(p => p.name) : [];
-      if (x.place && !opts.includes(x.place)) opts.unshift(x.place);
-      return `<li class="pick" data-i="${i}">
-        <div class="dhead"><b>${L.circled(i + 1)}</b><span class="t">${esc(L.fmtDay(x.date, poll.holidays || []))} ${hm(x.start)}〜${hm(x.end)}</span>${w ? `<span class="sub">${w.sure.length}/${lastEveryone}人${w.maybe.length ? `（+${w.maybe.length}）` : ""}</span>` : ""}</div>
-        <label class="field"><span class="label">場所</span><select data-pk="place"><option value="">場所を書かない</option>${opts.map(n => `<option ${n === x.place ? "selected" : ""}>${esc(n)}</option>`).join("")}</select></label>
-        <label class="field"><span class="label">メモ <span class="sub">任意。例：※今すぐ予約可</span></span><textarea data-pk="memo" rows="1" maxlength="300">${esc(x.memo || "")}</textarea></label>
-        <div class="actions">${i ? `<button type="button" class="btn sm" data-pkact="up">↑ 上へ</button>` : ""}<button type="button" class="btn sm" data-pkact="del">外す</button></div>
-      </li>`;
-    }).join("")}</ol>
-    <div class="actions"><button type="button" class="btn primary" data-pkact="copy">文面をコピー</button><button type="button" class="btn sm" data-pkact="clear">全部外す</button></div></div>`;
-  growAll(box);
+  const hol = poll.holidays || [];
+  const list = ds.map(d => L.fmtDay(d, hol)).join("・");
+  // 開け閉めは覚えておく（描き直しで閉じないように）。はじめは、パソコンは開く・スマホは閉じる（見出しに日付が出るので、カレンダーは開いたときだけ）
+  const open = box.querySelector("details") ? box.querySelector("details").open : !isSP();
+  box.innerHTML = `<details class="card candbox" ${open ? "open" : ""}><summary><b>📌 候補日</b> ${ds.length ? `<span class="candlist">${esc(list)}</span>` : `<span class="sub">まだありません</span>`}</summary><div class="candbody">
+    <p class="sub">${ds.length ? `この中から日程を決める予定です。できるだけ予定を空けておいてください（時間帯はあとで決めます）` : "みんなの状況の日ごとの「候補日に入れる」で選ぶと、ここと回答の画面に出ます。回答する人にも見えます"}</p>
+    ${ds.length ? candCalendar(ds) : ""}
+  </div></details>`;
 }
-// 投稿する候補を月のカレンダーに置く（練習の間隔・頻度をつかむため）。候補の日は ①② を出し、押すとその日へ
-function pickCalendar() {
-  const hol = poll.holidays || [], byDay = new Map();
-  picks.forEach((x, i) => byDay.set(x.date, [...(byDay.get(x.date) || []), i + 1]));
+// 候補日を月のカレンダーに置く（練習の間隔・頻度をつかむため）。押すとその日へ
+function candCalendar(ds) {
+  const hol = poll.holidays || [], on = new Set(ds);
   const head = [...WD].map((w, i) => `<span class="pc-h ${i === 0 ? "sun" : i === 6 ? "sat" : ""}">${w}</span>`).join("");
   return `<div class="pcal">${L.monthCalendar(poll.from, poll.to).map(({ ym, weeks }) => `<div class="pc-m"><b>${+ym.slice(5)}月</b><div class="pc-g">${head}${weeks.flat().map(iso => {
     if (!iso) return `<span></span>`;
-    const w = L.weekdayOf(iso), cls = [iso < poll.from || iso > poll.to || L.excludedOn(poll, iso).all ? "out" : "",   // 期間の外・対象でない日は薄く
-       w === 0 || hol.includes(iso) ? "sun" : w === 6 ? "sat" : ""].filter(Boolean).join(" ");
-    const n = byDay.get(iso), d = +iso.slice(8);
-    return n ? `<a class="pc-d on" href="#d-${iso}" data-goto="d-${iso}" title="候補${n.map(L.circled).join("")}"><span>${d}</span><small>${n.map(L.circled).join("")}</small></a>`
-      : `<span class="pc-d ${cls}"><span>${d}</span></span>`;
+    const w = L.weekdayOf(iso), d = +iso.slice(8);
+    if (on.has(iso)) return `<a class="pc-d on" href="#d-${iso}" data-goto="${iso}" title="候補日 ${L.fmtDay(iso, hol)}">${d}</a>`;
+    const cls = [iso < poll.from || iso > poll.to || L.excludedOn(poll, iso).all ? "out" : "",   // 期間の外・対象でない日は薄く
+      w === 0 || hol.includes(iso) ? "sun" : w === 6 ? "sat" : ""].filter(Boolean).join(" ");
+    return `<span class="pc-d ${cls}">${d}</span>`;
   }).join("")}</div></div>`).join("")}</div>`;
 }
-$("#picks").addEventListener("input", e => {
-  const li = e.target.closest("[data-i]"), k = e.target.dataset.pk; if (!li || !k) return;
-  picks[+li.dataset.i][k] = e.target.value; savePicks();
-  if (k === "memo") grow(e.target);
+$("#candBox").addEventListener("click", e => {
+  // カレンダーの日：URL の # を変えずに、いま見ている画面のその日へ（管理用の URL の #admin=… を消さないように）
+  const go = e.target.closest("a[data-goto]"); if (!go) return;
+  e.preventDefault();
+  const iso = go.dataset.goto;
+  [document.getElementById(`d-${iso}`), document.querySelector(`#days [data-date="${iso}"]`)].find(el => el?.offsetParent)?.scrollIntoView({ behavior: "smooth", block: "start" });
 });
-$("#picks").addEventListener("click", e => {
-  // カレンダーの日：URL の # を変えずにその日へ（管理用の URL の #admin=… を消さないように）
-  const go = e.target.closest("a[data-goto]");
-  if (go) { e.preventDefault(); document.getElementById(go.dataset.goto)?.scrollIntoView({ behavior: "smooth", block: "start" }); return; }
-  const b = e.target.closest("[data-pkact]"); if (!b) return;
-  const act = b.dataset.pkact, i = +b.closest("[data-i]")?.dataset.i;
-  if (act === "copy") { copy(L.postText(picks, poll.holidays || []), "文面をコピーしました"); return; }
-  if (act === "up") [picks[i - 1], picks[i]] = [picks[i], picks[i - 1]];
-  if (act === "del") picks.splice(i, 1);
-  if (act === "clear") { const before = picks; picks = []; savePicks(); renderPlan(true); toastUndo("投稿する候補を全部外しました", () => { picks = before; savePicks(); renderPlan(true); }); return; }
-  savePicks(); renderPlan(true);
-});
+// 候補日に入れる・外す（管理用の URL だけ。すぐ画面に出し、保存に失敗したら元に戻す）
+async function toggleCand(iso) {
+  const before = poll.candDates || [], next = isCand(iso) ? candDates().filter(d => d !== iso) : [...candDates(), iso].sort();
+  poll = { ...poll, candDates: next };
+  renderPlan(); renderDays();
+  try { await call("updatePoll", { pollId, key: adminKeyOk, patch: { candDates: next } }); toast(next.includes(iso) ? "候補日に入れました（みんなに見えます）" : "候補日から外しました"); }
+  catch (err) { poll = { ...poll, candDates: before }; renderPlan(); renderDays(); toast(`保存できませんでした：${err.message || err}`); }
+}
+
 // 候補の枠に空いている場所：人数に合う場所 → 人数の決まりがない場所 → 広めの場所の順。入りきらない場所は数だけ出す
 // 人数は、その枠に来られる人（参加できる＋調整が必要）
 // 「広い順」を選んでいれば、人数に合うかに関わらず広い場所から（遠くから来る人がいる日など）
@@ -949,7 +935,7 @@ $("#reqChips").addEventListener("click", e => {
 // 優先する人：この端末にこの日程調整ごとに覚える（決めるまで何度も見返すので）
 const prKey = `komadori:prio:${pollId}`;
 let prio = new Set(store.get(prKey, []));
-const myPrio = () => adminKeyOk ? prio : new Set();   // 優先する人・場所の広い順・投稿する候補は、管理用の URL で開いたときだけ
+const myPrio = () => adminKeyOk ? prio : new Set();   // 優先する人・場所の広い順・候補日を選ぶのは、管理用の URL で開いたときだけ
 $("#prioChips").addEventListener("click", e => {
   const b = e.target.closest("[data-prio]"); if (!b) return;
   const n = b.dataset.prio; prio.has(n) ? prio.delete(n) : prio.add(n);
@@ -957,20 +943,8 @@ $("#prioChips").addEventListener("click", e => {
   renderPlan();
 });
 $("#plan").addEventListener("click", async e => {
-  const b = e.target.closest("[data-pick]");
-  if (b) {
-    // 投稿する候補に入れる・外す。場所は、空いている場所の1つめを最初に選んでおく
-    const [date, s, en] = b.dataset.pick.split("|"), start = +s, end = +en;
-    const i = picks.findIndex(x => x.date === date && x.start === start && x.end === end);
-    if (i >= 0) picks.splice(i, 1);
-    else {
-      const av = avail ? L.filterPlaces(avail, { groups: [...pgroups], q: $("#pq").value }) : null;
-      const w = lastWins.find(x => x.date === date && x.start === start && x.end === end);
-      picks.push({ date, start, end, place: av && w ? (fitPlaces(av, date, w)[0]?.name || "") : "", memo: "" });
-    }
-    savePicks(); renderPlan(true);
-    return;
-  }
+  const b = e.target.closest("[data-cand]");
+  if (b) { toggleCand(b.dataset.cand); return; }
   const c = e.target.closest("[data-cell]"); if (!c) return;
   const [iso, m] = c.dataset.cell.split("|"), cell = L.grid(poll, people)[iso][m];
   const info = c.closest(".card").querySelector(".cellinfo");

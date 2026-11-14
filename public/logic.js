@@ -375,18 +375,6 @@ export function slotLine({ date, start, end, title, place }) {
   return [date, t, title, place ? `@${place}` : ""].filter(Boolean).join(" ");
 }
 
-/** ①②…（20まで。それより先は (21)） */
-export const circled = n => n >= 1 && n <= 20 ? String.fromCodePoint(0x2460 + n - 1) : `(${n})`;
-/** 投稿する候補の文面（LINE や Slack に貼る）：
- *  ◆候補① 1/16(土) 13:00〜15:00
- *  　場所
- *  　メモ（何行でも） */
-export function postText(items, holidays = []) {
-  return items.map((x, i) => [`◆候補${circled(i + 1)} ${fmtDay(x.date, holidays)} ${fmtMin(x.start)}〜${fmtMin(x.end)}`,
-    ...(x.place ? [`　${x.place}`] : []),
-    ...String(x.memo || "").split(/\r?\n/).map(s => s.trim()).filter(Boolean).map(s => `　${s}`)].join("\n")).join("\n\n");
-}
-
 /** AI に相談する用の文面（管理する人が ChatGPT などに貼る）：お願い・条件のひな形・設定・回答・場所・アプリが出した候補。
  *  windows はアプリが出した候補（よい順）、conds は { duration, kindLabel, min, required, priority, dates }。
  *  anonymize なら、名前を「メンバーA」…に置き換える（コメントの中の名前は置き換えない） */
@@ -405,6 +393,7 @@ export function aiBrief({ poll, people, avail = null, windows = [], conds = {}, 
   L.push(`# 条件（わかるところを書き足してください）`, `- 練習の頻度：`, `- 本番の日：`,
     `- 優先する人（来られる日を先に取りたい人）：${names(conds.priority || [])}`,
     `- 必須の人（来られない枠は選ばない人）：${names(conds.required || [])}`,
+    `- 候補日（管理する人が選んだ日。メンバーにも見せている）：${(poll.candDates || []).filter(d => d >= poll.from && d <= poll.to).map(day).join("、")}`,
     `- 遠くから来る人・部屋の希望：`, `- そのほか：`, ``);
   L.push(`# 日程調整の設定`, `- 期間：${day(poll.from)}〜${day(poll.to)}`,
     `- 対象の日：${(DAY_TYPES[poll.dayType] || DAY_TYPES.all).label}`,

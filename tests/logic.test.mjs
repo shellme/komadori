@@ -229,17 +229,6 @@ test("月のカレンダー（日曜はじまり）と、場所の広い順", ()
   assert.deepEqual(L.widestFirst(ps).map(x => x.id), ["c", "d", "a", "b"]);
 });
 
-test("投稿する候補の文面（◆候補① 日時・場所・メモ）", () => {
-  const items = [
-    { date: "2026-12-19", start: 1140, end: 1260, place: "ノア中野 Cst 28帖", memo: "※今すぐ予約可" },
-    { date: "2026-12-13", start: 630, end: 750, place: "", memo: "※会員証ある人に予約お願いする\n\n（早起きが苦手なら後回し）" },
-  ];
-  assert.equal(L.postText(items, []), "◆候補① 12/19(土) 19:00〜21:00\n　ノア中野 Cst 28帖\n　※今すぐ予約可\n\n◆候補② 12/13(日) 10:30〜12:30\n　※会員証ある人に予約お願いする\n　（早起きが苦手なら後回し）");
-  assert.equal(L.postText([{ date: "2027-02-11", start: 780, end: 900 }], ["2027-02-11"]), "◆候補① 2/11(木・祝) 13:00〜15:00");
-  assert.equal(L.circled(20), "⑳");
-  assert.equal(L.circled(21), "(21)");
-});
-
 test("AI に相談する用の文面：設定・回答・場所・アプリの候補", () => {
   const p = poll({ step: 60, from: "2026-12-05", to: "2026-12-06", dayStart: "10:00", dayEnd: "20:00", dayType: "weekend",
     exclude: [{ kind: "rule", from: "2026-12-06", to: "2026-12-06", start: "18:00", end: "20:00" }] });
@@ -254,6 +243,7 @@ test("AI に相談する用の文面：設定・回答・場所・アプリの�
   const t = L.aiBrief({ poll: p, people: ppl, avail, windows, conds: { duration: 120, kindLabel: "土日祝", priority: ["アキ"] } });
   assert.match(t, /^# お願い/);
   assert.match(t, /- 優先する人（来られる日を先に取りたい人）：アキ\n/);
+  assert.match(L.aiBrief({ poll: { ...p, candDates: ["2026-12-05", "2027-01-01"] }, people: ppl }), /- 候補日（管理する人が選んだ日。メンバーにも見せている）：12\/5\(土\)\n/);   // 期間の外は出さない
   assert.match(t, /- 対象の日：土日祝だけ/);
   assert.match(t, /  - 12\/6 18:00-20:00/);                          // 使わない時間帯
   assert.match(t, /## アキ\n- 12\/5\(土\) ● 13:00-15:00 💬 15時に出ます\n- 12\/6\(日\) ×/);
