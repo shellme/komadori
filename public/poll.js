@@ -1,7 +1,7 @@
 // 回答する・みんなの状況（/p/{pollId}）
 //   時間を入力：回答の状況の行・⚡ まとめて入力（曜日ごと）・未回答／すべて（件数）・月の切り替え・
 //              歯車（マスを押したときの動き・ロック）・日ごとの ⋯（コメント・この日の入力を消す）・まとめて・× 参加不可・取り消す
-//   みんなの状況：条件（集まりたい長さ・対象の日・参加できる人数・並べ方）・日ごとの人数のマス（+調整）・★ 候補・参加できない人・コメント
+//   みんなの状況：条件（集まりたい長さ・対象の日・参加できる人数・並べ方）・日ごとの人数のマス（+調整）・おすすめの時間・参加できない人・コメント
 import { db, ready, call, doc, getDoc, setDoc, addDoc, collection, onSnapshot, serverTimestamp } from "./fb.js";
 import * as L from "./logic.js";
 import { JP_HOLIDAYS } from "./holidays.js";
@@ -594,7 +594,7 @@ function renderPlan() {
   // 参加できない人：その日に回答していて、この時間が ● でも △ でもない人（その日にまだ回答していない人は分けて出す）
   const missing = w => people.filter(p => L.answeredOn(p.days, w.date)).map(p => p.name).filter(n => !w.sure.includes(n) && !w.maybe.includes(n) && !w.near?.includes(n));   // 優先する人で一部の時間だけ来られる人は、上に「一部の時間だけ」と出す
   const notYetOn = iso => [...people.filter(p => !L.answeredOn(p.days, iso)).map(p => p.name), ...ast.pending];
-  $("#planNote").innerHTML = notYet.length ? `<p class="warn">必須の人のうち ${esc(notYet.join("、"))} がまだ回答していないので、その人は数えずに候補を出しています</p>` : "";
+  $("#planNote").innerHTML = notYet.length ? `<p class="warn">必須の人のうち ${esc(notYet.join("、"))} がまだ回答していないので、その人は数えずにおすすめを出しています</p>` : "";
   // 候補の「文面をコピー」は、管理用の URL で開いたときだけ出す（決めて知らせる人の操作。回答する人には要らない）
   // 日程の決定はこのアプリでは記録しない（候補をしぼるところまで。決めたら文面をコピーして LINE などで知らせる）
   $("#plan").innerHTML = list.map(({ iso, wins }) => {
@@ -618,14 +618,14 @@ function renderPlan() {
       ${namesLine("未回答", notYetDay, "font-size:13px;color:var(--muted)")}
       ${notesHtml(notes)}
       <div style="display:grid;gap:8px">${wins.length ? wins.map((w, i) => `<div class="cand ${i === 0 ? "top" : ""}">
-        <div class="dhead">${i === 0 ? `<span class="star">★ 候補</span>` : ""}<span class="t">${hm(w.start)}〜${hm(w.end)}</span>
+        <div class="dhead">${i === 0 ? `<span class="star">おすすめ</span>` : ""}<span class="t">${hm(w.start)}〜${hm(w.end)}</span>
           <span style="font-size:14px"><b>${w.sure.length}/${everyone}人</b>${w.maybe.length ? `<span class="sub">（調整で+${w.maybe.length}人）</span>` : ""}</span></div>
         ${prioLine(w)}
         ${av ? candPlaces(av, iso, w) : ""}
         ${namesLine(`<b style="color:var(--maybe)">△</b> 調整が必要`, w.maybe, "font-size:13px")}
         ${namesLine("この時間は参加できない", missing(w), "", "sub")}
         ${namesLine("まだ回答していない", notYetOn(w.date), "", "sub")}
-      </div>`).join("") : total ? `<p class="sub">候補になる時間帯がありません</p>` : ""}</div>
+      </div>`).join("") : total ? `<p class="sub">条件に合う時間帯がありません</p>` : ""}</div>
       ${av ? placesOfDay(av, iso) : ""}
     </div>`;
   }).join("") || `<p class="empty">この条件の日はありません</p>`;

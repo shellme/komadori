@@ -111,9 +111,9 @@
         <div class="field" style="margin-top:12px"><span class="label">必須の人 <span class="sub">来られない枠は出しません。押して切り替え</span></span><div class="chips" id="reqChips"></div></div>
         <div class="field" id="prioBox" hidden style="margin-top:12px"><span class="label">優先する人 <span class="sub">来られる枠を先に、来られない日はほかの人で並べます。一部の時間だけ重なる枠はその次。少人数の枠を外すときは「参加できる人数」も選んでください</span></span><div class="chips" id="prioChips"></div></div>
       </details>
-      <details class="howbox"><summary>ⓘ マスと ★ 候補の見方<svg class="chev" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg></summary><div class="howbody">
+      <details class="howbox"><summary>マスとおすすめの見方<svg class="chev" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg></summary><div class="howbody">
       <div class="legend" aria-label="マスの見方"><i class="h1"></i><i class="h4" style="margin-left:-6px"></i><span>数字＝参加できる人数（緑が濃いほど多い）</span><b style="color:var(--maybe)">+2</b><span>調整すれば来られる人数</span><i class="hx"></i><span>使わない時間</span><span id="legendFree" hidden style="display:inline-flex;align-items:center;gap:6px"><i class="h0" style="border-bottom:4px solid var(--ink)"></i><span>空いている場所がある時間</span></span></div>
-        <p>★ 候補は、そろう人の多さ（同じなら空いている場所の多さ）で選んだ時間帯です。決めるときの目安にしてください</p>
+        <p>日ごとに、そろう人の多さ（同じなら空いている場所の多さ）で時間帯を3つまで出し、いちばんよいものに「おすすめ」を付けます。決めるときの目安です（管理する人が選ぶ「📌 候補日」とは別のものです）</p>
         <p id="placesAsOfNote" hidden></p>
       </div></details>
       <div id="planNote"></div>
@@ -131,7 +131,7 @@
 <dialog id="aiDlg" aria-labelledby="aiH">
   <form method="dialog" class="dlg">
     <div class="dlghead"><h3 id="aiH">🤖 AIに相談する</h3><button type="button" class="dlgx" data-close aria-label="閉じる" title="閉じる"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg></button></div>
-    <p class="sub">回答と場所を、ChatGPT や Claude に貼る文面にします。お願いのしかた・条件のひな形（頻度や本番の日を書き足す）・設定・みんなの回答・場所の空き・アプリが出した候補が入ります。候補と場所は、いまの「条件」で出したものです。</p>
+    <p class="sub">回答と場所を、ChatGPT や Claude に貼る文面にします。お願いのしかた・条件のひな形（頻度や本番の日を書き足す）・設定・みんなの回答・場所の空き・アプリのおすすめの時間が入ります。おすすめと場所は、いまの「条件」で出したものです。</p>
     <p class="warn">名前とコメントが、貼り付けたAIのサービスに渡ります。気になるときは名前を置き換えてください</p>
     <label class="check"><input type="checkbox" id="aiAnon">名前を「メンバーA・B…」に置き換える</label>
     <div class="actions"><button type="button" class="btn primary" id="aiCopy">AIに相談する用にコピー</button><button type="button" class="btn" id="aiSave">ファイルで保存（.md）</button></div>
@@ -178,7 +178,7 @@
 <dialog id="placesDlg" aria-labelledby="placesH">
   <form method="dialog" class="dlg">
     <div class="dlghead"><h3 id="placesH">📍 場所の空き状況</h3><button type="button" class="dlgx" data-close aria-label="閉じる" title="閉じる"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg></button></div>
-    <p class="info">場所ごとの空いている時間を貼ると、候補に「空いている場所」が出ます。書き方は［形の説明・AI への指示］へ</p>
+    <p class="info">場所ごとの空いている時間を貼ると、おすすめの時間に「空いている場所」が出ます。書き方は［形の説明・AI への指示］へ</p>
     <p class="sub" id="placesNowDlg"></p>
     <textarea id="placesText" style="min-height:120px;font-size:13px" placeholder="貼り付けるか、ファイルをここに落とします。例：&#10;スタジオA 32帖	12/5	13:00-18:00, 19:00-22:00&#10;居酒屋まる	12/5	18:00-23:00	4〜8人"></textarea>
     <div class="actions"><label class="btn sm">ファイルを読み込む<input type="file" id="placesFile" accept=".txt,.tsv,.csv,.json,text/*,application/json" hidden></label>
