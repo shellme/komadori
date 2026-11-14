@@ -633,13 +633,18 @@ function renderPlan(force = false) {
   if (!total) $("#plan").insertAdjacentHTML("afterbegin", noAnswer);
   drawEmoji($("#plan"));
   lastWins = all; lastEveryone = everyone; lastAv = av;
+  lastDays = days; lastConds = { duration: dur, kindLabel: txt("#kind"), min, required, priority };
+  $("#aiBox").hidden = !adminKeyOk || !total;
   renderPicks(force);
 }
 // ---------- 投稿する候補（管理用の URL で開いたときだけ） ----------
 // 候補を選んで、LINE や Slack に貼る文面（◆候補① 日時・場所・メモ）をまとめて作る。この端末にこの日程調整ごとに覚える
 const pkKey = `komadori:picks:${pollId}`;
 let picks = (store.get(pkKey, []) || []).filter(x => x && L.isIso(x.date) && Number.isInteger(x.start) && Number.isInteger(x.end));
-let lastWins = [], lastEveryone = 0, lastAv = null;
+let lastWins = [], lastEveryone = 0, lastAv = null, lastDays = [], lastConds = {};
+// AI に相談する用にコピー（管理用の URL だけ）。候補と場所は、いまの条件で出したもの
+$("#aiCopy").addEventListener("click", () => copy(L.aiBrief({ poll, people, avail: lastAv, windows: lastWins,
+  conds: { ...lastConds, dates: lastDays }, anonymize: $("#aiAnon").checked }), "AIに相談する用の文面をコピーしました"));
 const savePicks = () => store.set(pkKey, picks);
 const picked = (date, start, end) => picks.some(x => x.date === date && x.start === start && x.end === end);
 function renderPicks(force = false) {
