@@ -129,3 +129,16 @@ test("履歴：足すだけ（変えられない・消せない）", async () =>
   await assertFails(updateDoc(doc(as("dev2"), `polls/${P}/people/p1/log/l1`), { name: "x" }));
   await assertFails(deleteDoc(doc(as("dev2"), `polls/${P}/people/p1/log/l1`)));
 });
+
+test("自分の日程調整の一覧（Google の引き継ぎ）：読み書きは本人だけ・決まった形だけ", async () => {
+  const list = { recent: [{ id: "a".repeat(20), title: "練習", emoji: "", admin: "key", at: 1 }], updatedAt: serverTimestamp() };
+  await assertSucceeds(setDoc(doc(as("u1"), "users/u1"), list));
+  await assertSucceeds(getDoc(doc(as("u1"), "users/u1")));
+  await assertFails(getDoc(doc(as("u2"), "users/u1")));
+  await assertFails(getDoc(doc(anon(), "users/u1")));
+  await assertFails(setDoc(doc(as("u2"), "users/u1"), list));
+  await assertFails(setDoc(doc(as("u1"), "users/u1"), { ...list, extra: 1 }));
+  await assertFails(setDoc(doc(as("u1"), "users/u1"), { recent: Array(51).fill(list.recent[0]), updatedAt: serverTimestamp() }));
+  await assertFails(deleteDoc(doc(as("u1"), "users/u1")));
+  await assertFails(getDocs(collection(as("u1"), "users")));
+});

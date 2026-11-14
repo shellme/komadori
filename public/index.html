@@ -28,11 +28,13 @@
   <section id="intro">
     <h1>みんながそろう「コマ」を見つける</h1>
     <p class="sub">期間を決めて URL を送ると、みんなが日ごとの空き時間を回答します。ログインはいりません。</p>
+    <p class="info" id="acctIntro" hidden>ほかの端末で Google とつないでいれば、<button type="button" class="linkbtn" data-google>Google でログイン</button>して一覧を呼び出せます</p>
   </section>
 
   <section id="recent" class="card" hidden>
-    <h2>この端末で見た日程調整</h2>
+    <h2 id="recentHead">この端末で見た日程調整</h2>
     <ul class="plain" id="recentList"></ul>
+    <p class="info" id="acct"></p>
   </section>
 
   <form id="create" class="card" novalidate>
@@ -107,7 +109,7 @@
     <div class="card">
       <h2>管理用の URL <span class="tag dark">自分だけ</span></h2>
       <p class="warn danger">人に送らず、自分で取っておいてください。この URL を知っている人は、設定の編集・削除ができます</p>
-      <p class="info">この端末には覚えておきます（トップの「この端末で見た日程調整」から開けます）</p>
+      <p class="info" id="doneAcct">この端末には覚えておきます（トップの「この端末で見た日程調整」から開けます）</p>
       <div class="url"><input type="text" id="adminUrl" readonly aria-label="管理用の URL"><button type="button" class="btn sm" data-copy="adminUrl">コピー</button></div>
     </div>
     <div class="actions"><a class="btn" id="openPoll" href="#">開いて自分も回答する</a></div>

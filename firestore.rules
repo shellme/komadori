@@ -5,6 +5,7 @@ rules_version = '2';
 // - 調整そのものは作るだけ。変更・削除は Cloud Functions（管理用の鍵を確かめる）から行う。日程の決定は記録しない
 // - 作るときは、画面に出す値（期間・時刻・長さ）の形と大きさを確かめる（中身を HTML に入れても崩れないように）
 // - 答えには書いた端末（device = 匿名ログインの uid）を必ず入れる。履歴は足すだけ
+// - Google とつないだ人（任意）は、自分の日程調整の一覧を users/{uid} に置く。読み書きは本人だけ
 service cloud.firestore {
   match /databases/{database}/documents {
     function signedIn() { return request.auth != null; }
@@ -72,6 +73,15 @@ service cloud.firestore {
           allow update, delete: if false;
         }
       }
+    }
+
+    match /users/{uid} {
+      allow read: if signedIn() && request.auth.uid == uid;
+      allow create, update: if signedIn() && request.auth.uid == uid
+        && request.resource.data.keys().hasOnly(['recent', 'updatedAt'])
+        && request.resource.data.recent is list && request.resource.data.recent.size() <= 50
+        && request.resource.data.updatedAt == request.time;
+      allow delete: if false;
     }
 
     match /{document=**} { allow read, write: if false; }

@@ -28,10 +28,10 @@ if (local) {
   connectFunctionsEmulator(functions, "127.0.0.1", 5011);
 }
 
-/** 端末ごとの匿名ログイン。uid を返す */
+/** 端末ごとの匿名ログイン。uid を返す（Google とつないだ人は、そのままのログインを使う） */
 export const ready = new Promise((resolve, reject) => {
   const off = onAuthStateChanged(auth, u => {
     if (u) { off(); resolve(u.uid); }
+    else signInAnonymously(auth).catch(reject);   // 前のログインが残っていないときだけ（残っているのに呼ぶと、Google とのつながりが外れる）
   });
-  signInAnonymously(auth).catch(reject);
 });
