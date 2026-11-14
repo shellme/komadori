@@ -657,12 +657,14 @@ function renderCand() {
     ? `<b>📌 候補日</b> <span class="candlist">${esc(ds.map(d => L.fmtDay(d, hol)).join("・"))}</span> <button type="button" class="linkbtn" id="candOpen">カレンダー ›</button>`
     : `<b>📌 候補日</b> <span class="sub">まだありません。みんなの状況の日ごとの「候補日に入れる」で選ぶと、ここに出ます（回答する人にも見えます）</span>`;
   if ($("#candDlg").open) $("#candBody").innerHTML = candDlgHtml();
+  // 上に貼りつく帯の 📌：候補日があればいつでもカレンダーを開ける（間隔を見るのに、ページの上まで戻らなくてよいように）
+  $("#candQuick").hidden = !ds.length;
+  $("#candQuickN").textContent = ds.length || "";
 }
 const candDlgHtml = () => `<p class="sub">この中から日程を決める予定です。できるだけ予定を空けておいてください（時間帯はあとで決めます）。日付を押すと、その日へ移ります</p>${candCalendar(candDates())}`;
-$("#candLine").addEventListener("click", e => {
-  if (!e.target.closest("#candOpen")) return;
-  $("#candBody").innerHTML = candDlgHtml(); $("#candDlg").showModal();
-});
+const openCand = () => { $("#candBody").innerHTML = candDlgHtml(); $("#candDlg").showModal(); };
+$("#candLine").addEventListener("click", e => { if (e.target.closest("#candOpen")) openCand(); });
+$("#candQuick").addEventListener("click", openCand);
 // 候補日を月のカレンダーに置く（練習の間隔・頻度をつかむため）。押すとその日へ
 function candCalendar(ds) {
   const hol = poll.holidays || [], on = new Set(ds);

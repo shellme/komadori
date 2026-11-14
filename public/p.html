@@ -52,9 +52,13 @@
       <p class="info">管理用の URL で開いています。みんなに送るのは回答用の URL です</p>
     </div>
 
-    <div class="modes" role="tablist">
-      <button role="tab" id="tabAnswer" aria-selected="true" aria-controls="answer">自分の時間を回答</button>
-      <button role="tab" id="tabResult" aria-selected="false" aria-controls="result">みんなの状況 <span id="peopleCount"></span></button>
+    <!-- 上に貼りつく帯：大きな切り替えと、候補日のカレンダー（スクロールしたままどこからでも開けるように） -->
+    <div class="modebar">
+      <div class="modes" role="tablist">
+        <button role="tab" id="tabAnswer" aria-selected="true" aria-controls="answer">自分の時間を回答</button>
+        <button role="tab" id="tabResult" aria-selected="false" aria-controls="result">みんなの状況 <span id="peopleCount"></span></button>
+      </div>
+      <button type="button" class="candquick" id="candQuick" hidden aria-label="候補日のカレンダー" title="候補日のカレンダー">📌<span id="candQuickN"></span></button>
     </div>
 
     <section id="answer" role="tabpanel" aria-labelledby="tabAnswer">
