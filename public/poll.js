@@ -555,12 +555,12 @@ function notesHtml(notes) {
   if (notes.length <= 3) return notes.map(one).join("");
   return notes.slice(0, 3).map(one).join("") + `<details class="names"><summary>ほかのコメント ${notes.length - 3}件</summary>${notes.slice(3).map(one).join("")}</details>`;
 }
-function renderPlan() {
+function renderPlan(force = false) {
   renderReqChips();
   $("#peopleCount").textContent = people.length ? `(${people.length})` : "";
   const total = people.length, dur = +$("#dur").value || poll.durations[0], kind = $("#kind").value;
   const txt = id => $(id).selectedOptions[0]?.textContent || "";
-  $("#planCond").textContent = [txt("#dur"), txt("#kind"), +$("#min").value > 1 ? `${$("#min").value}人以上` : "", needed.size ? `必須：${[...needed].slice(0, 3).join("、")}${needed.size > 3 ? ` ほか${needed.size - 3}人` : ""}` : "", avail && pgroups.size ? `場所：${[...pgroups].join("・")}` : "", txt("#sort")].filter(Boolean).join("・");
+  $("#planCond").textContent = [txt("#dur"), txt("#kind"), +$("#min").value > 1 ? `${$("#min").value}人以上` : "", needed.size ? `必須：${[...needed].slice(0, 3).join("、")}${needed.size > 3 ? ` ほか${needed.size - 3}人` : ""}` : "", myPrio().size ? `優先：${[...myPrio()].slice(0, 3).join("、")}${myPrio().size > 3 ? ` ほか${myPrio().size - 3}人` : ""}` : "", avail && pgroups.size ? `場所：${[...pgroups].join("・")}` : "", avail && wide() ? "広い場所から" : "", txt("#sort")].filter(Boolean).join("・");
   const ast = L.answerStatus(poll, people);
   // 回答の状況：全部の日に回答した人・まだ残りがある人（残りの日数）・まだ回答していない人（呼びたい人の一覧から）
   const prog = L.progress(poll, people);
@@ -580,20 +580,22 @@ function renderPlan() {
   $("#legendFree").hidden = !av;
   $("#placesAsOfNote").hidden = !avail;
   if (avail) $("#placesAsOfNote").textContent = `📍 場所の空き状況${avail.asOf ? `：${L.fmtAsOf(avail.asOf)}時点` : ""}。予約の前に、必ずそれぞれの場所で空きを確かめてください`;
-  const g = L.grid(poll, people), all = L.bestWindows(poll, people, dur, { limit: Infinity, required, min, avail: av });   // 人数が同じなら、空いている場所が多い枠を先に
+  // 優先する人が来られる枠 → 一部だけ重なる枠 → 人数 → 空いている場所の数、の順（L.compareWindows）
+  $("#prioBox").hidden = $("#psortBox").hidden = !adminKeyOk;
+  const priority = [...myPrio()].filter(n => people.some(p => p.name === n));
+  const g = L.grid(poll, people), all = L.bestWindows(poll, people, dur, { limit: Infinity, required, priority, min, avail: av });
   const lvl = c => total ? Math.min(4, Math.ceil((c / total) * 4)) : 0;
-  const list = Object.keys(g).filter(iso => kind === "all" || kindOf(iso) === kind).map(iso => {
-    const wins = all.filter(w => w.date === iso).slice(0, 3);
-    return { iso, wins, score: wins[0] ? (wins[0].sure.length * 100 + wins[0].maybe.length) * 1000 + Math.min(wins[0].places, 999) : -1 };
-  });
-  if (total && $("#sort").value === "score") list.sort((a, b) => b.score - a.score || a.iso.localeCompare(b.iso));
+  const days = Object.keys(g).filter(iso => kind === "all" || kindOf(iso) === kind);
+  const list = days.map(iso => ({ iso, wins: all.filter(w => w.date === iso).slice(0, 3) }));
+  if (total && $("#sort").value === "score") list.sort((a, b) => !a.wins[0] - !b.wins[0] || (a.wins[0] ? L.compareWindows(a.wins[0], b.wins[0]) : 0) || a.iso.localeCompare(b.iso));
   // 参加できない人：その日に回答していて、この時間が ● でも △ でもない人（その日にまだ回答していない人は分けて出す）
-  const missing = w => people.filter(p => L.answeredOn(p.days, w.date)).map(p => p.name).filter(n => !w.sure.includes(n) && !w.maybe.includes(n));
+  const missing = w => people.filter(p => L.answeredOn(p.days, w.date)).map(p => p.name).filter(n => !w.sure.includes(n) && !w.maybe.includes(n) && !w.near?.includes(n));   // 優先する人で一部の時間だけ来られる人は、上に「一部の時間だけ」と出す
   const notYetOn = iso => [...people.filter(p => !L.answeredOn(p.days, iso)).map(p => p.name), ...ast.pending];
   $("#planNote").innerHTML = notYet.length ? `<p class="warn">必須の人のうち ${esc(notYet.join("、"))} がまだ回答していないので、その人は数えずに候補を出しています</p>` : "";
   // 候補の「文面をコピー」は、管理用の URL で開いたときだけ出す（決めて知らせる人の操作。回答する人には要らない）
   // 日程の決定はこのアプリでは記録しない（候補をしぼるところまで。決めたら文面をコピーして LINE などで知らせる）
-  $("#plan").innerHTML = list.map(({ iso, wins }) => {
+  const weekly = total && adminKeyOk ? weeklyHtml(L.weeklyBest(days, all.filter(w => days.includes(w.date))), everyone, av) : "";
+  $("#plan").innerHTML = weekly + list.map(({ iso, wins }) => {
     const ngs = people.filter(p => p.days?.[iso]?.ng).map(p => p.name);
     // その日にまだ何も入れていない人（呼びたい人の一覧で、まだ1日も回答していない人も入れる）
     const notYetDay = [...people.filter(p => !L.answeredOn(p.days, iso)).map(p => p.name), ...ast.pending];
@@ -606,7 +608,7 @@ function renderPlan() {
       const cls = `h${c.sure.length ? lvl(c.sure.length) : 0}`;
       return `<span class="slot ${cls}${freeM.has(m) ? " free" : ""}" data-cell="${iso}|${m}" title="${L.fmtMin(m)}〜 参加できる${c.sure.length}人・調整が必要${c.maybe.length}人">${c.sure.length ? `<b>${c.sure.length}</b>` : ""}${c.maybe.length ? `<small class="plus">+${c.maybe.length}</small>` : ""}</span>`;
     });
-    return `<div class="card" style="gap:12px">
+    return `<div class="card" id="d-${iso}" style="gap:12px">
       ${dateHead(iso)}
       <div aria-label="時間ごとの参加人数">${cells}</div>
       <p class="sub cellinfo" aria-live="polite" hidden></p>
@@ -616,12 +618,13 @@ function renderPlan() {
       <div style="display:grid;gap:8px">${wins.length ? wins.map((w, i) => `<div class="cand ${i === 0 ? "top" : ""}">
         <div class="dhead">${i === 0 ? `<span class="star">★ 候補</span>` : ""}<span class="t">${hm(w.start)}〜${hm(w.end)}</span>
           <span style="font-size:14px"><b>${w.sure.length}/${everyone}人</b>${w.maybe.length ? `<span class="sub">（調整で+${w.maybe.length}人）</span>` : ""}</span></div>
+        ${prioLine(w)}
         ${av ? candPlaces(av, iso, w) : ""}
         ${namesLine(`<b style="color:var(--maybe)">△</b> 調整が必要`, w.maybe, "font-size:13px")}
         ${namesLine("この時間は参加できない", missing(w), "", "sub")}
         ${namesLine("まだ回答していない", notYetOn(w.date), "", "sub")}
         ${adminKeyOk ? `<div class="actions">
-          <button type="button" class="btn sm" data-copyslot="${iso}|${w.start}|${w.end}|${esc(av ? (fitPlaces(av, iso, w)[0]?.name || "") : "")}">文面をコピー</button>
+          <button type="button" class="btn sm" data-pick="${iso}|${w.start}|${w.end}" aria-pressed="${picked(iso, w.start, w.end)}">${picked(iso, w.start, w.end) ? "✓ 投稿する候補に入れた" : "投稿する候補に入れる"}</button>
         </div>` : ""}
       </div>`).join("") : total ? `<p class="sub">候補になる時間帯がありません</p>` : ""}</div>
       ${av ? placesOfDay(av, iso) : ""}
@@ -629,10 +632,54 @@ function renderPlan() {
   }).join("") || `<p class="empty">この条件の日はありません</p>`;
   if (!total) $("#plan").insertAdjacentHTML("afterbegin", noAnswer);
   drawEmoji($("#plan"));
+  lastWins = all; lastEveryone = everyone; lastAv = av;
+  renderPicks(force);
 }
+// ---------- 投稿する候補（管理用の URL で開いたときだけ） ----------
+// 候補を選んで、LINE や Slack に貼る文面（◆候補① 日時・場所・メモ）をまとめて作る。この端末にこの日程調整ごとに覚える
+const pkKey = `komadori:picks:${pollId}`;
+let picks = (store.get(pkKey, []) || []).filter(x => x && L.isIso(x.date) && Number.isInteger(x.start) && Number.isInteger(x.end));
+let lastWins = [], lastEveryone = 0, lastAv = null;
+const savePicks = () => store.set(pkKey, picks);
+const picked = (date, start, end) => picks.some(x => x.date === date && x.start === start && x.end === end);
+function renderPicks(force = false) {
+  const box = $("#picks");
+  box.hidden = !adminKeyOk || !picks.length;
+  if (box.hidden) { box.innerHTML = ""; return; }
+  if (!force && box.contains(document.activeElement)) return;   // 書いている途中は描き直さない（ほかの人の回答が届いたときなど）
+  box.innerHTML = `<div class="card picks" style="gap:10px"><div><b>投稿する候補 ${picks.length}件</b> <span class="sub">上から ①②…。LINE や Slack に貼る文面にします</span></div>
+    <ol class="plain">${picks.map((x, i) => {
+      const w = lastWins.find(v => v.date === x.date && v.start === x.start && v.end === x.end);
+      const opts = lastAv && w ? fitPlaces(lastAv, x.date, w).map(p => p.name) : [];
+      if (x.place && !opts.includes(x.place)) opts.unshift(x.place);
+      return `<li class="pick" data-i="${i}">
+        <div class="dhead"><b>${L.circled(i + 1)}</b><span class="t">${esc(L.fmtDay(x.date, poll.holidays || []))} ${hm(x.start)}〜${hm(x.end)}</span>${w ? `<span class="sub">${w.sure.length}/${lastEveryone}人${w.maybe.length ? `（+${w.maybe.length}）` : ""}</span>` : ""}</div>
+        <label class="field"><span class="label">場所</span><select data-pk="place"><option value="">場所を書かない</option>${opts.map(n => `<option ${n === x.place ? "selected" : ""}>${esc(n)}</option>`).join("")}</select></label>
+        <label class="field"><span class="label">メモ <span class="sub">任意。例：※今すぐ予約可</span></span><textarea data-pk="memo" rows="1" maxlength="300">${esc(x.memo || "")}</textarea></label>
+        <div class="actions">${i ? `<button type="button" class="btn sm" data-pkact="up">↑ 上へ</button>` : ""}<button type="button" class="btn sm" data-pkact="del">外す</button></div>
+      </li>`;
+    }).join("")}</ol>
+    <div class="actions"><button type="button" class="btn primary" data-pkact="copy">文面をコピー</button><button type="button" class="btn sm" data-pkact="clear">全部外す</button></div></div>`;
+  growAll(box);
+}
+$("#picks").addEventListener("input", e => {
+  const li = e.target.closest("[data-i]"), k = e.target.dataset.pk; if (!li || !k) return;
+  picks[+li.dataset.i][k] = e.target.value; savePicks();
+  if (k === "memo") grow(e.target);
+});
+$("#picks").addEventListener("click", e => {
+  const b = e.target.closest("[data-pkact]"); if (!b) return;
+  const act = b.dataset.pkact, i = +b.closest("[data-i]")?.dataset.i;
+  if (act === "copy") { copy(L.postText(picks, poll.holidays || []), "文面をコピーしました"); return; }
+  if (act === "up") [picks[i - 1], picks[i]] = [picks[i], picks[i - 1]];
+  if (act === "del") picks.splice(i, 1);
+  if (act === "clear") { const before = picks; picks = []; savePicks(); renderPlan(true); toastUndo("投稿する候補を全部外しました", () => { picks = before; savePicks(); renderPlan(true); }); return; }
+  savePicks(); renderPlan(true);
+});
 // 候補の枠に空いている場所：人数に合う場所 → 人数の決まりがない場所 → 広めの場所の順。入りきらない場所は数だけ出す
 // 人数は、その枠に来られる人（参加できる＋調整が必要）
-const usablePlaces = g => [...g.fit, ...g.unknown, ...g.roomy];
+// 「広い順」を選んでいれば、人数に合うかに関わらず広い場所から（遠くから来る人がいる日など）
+const usablePlaces = g => wide() ? L.widestFirst([...g.fit, ...g.unknown, ...g.roomy]) : [...g.fit, ...g.unknown, ...g.roomy];
 const fitPlaces = (av, iso, w) => usablePlaces(L.placesForWindow(av, iso, w.start, w.end, w.sure.length + w.maybe.length));
 function candPlaces(av, iso, w) {
   const n = w.sure.length + w.maybe.length, g = L.placesForWindow(av, iso, w.start, w.end, n), list = usablePlaces(g);
@@ -645,6 +692,30 @@ function candPlaces(av, iso, w) {
 const capTag = (p, roomy = false) => p.capacity ? ` <span class="sub">${esc(L.capacityLabel(p.capacity))}${roomy ? "・広め" : ""}</span>` : "";
 
 // その日に空いている場所の一覧（場所ごとの空き時間）。回答がなくても出す
+// 優先する人のようす：● 来られる・△ 調整が必要・一部の時間だけ・来られない
+function prioLine(w) {
+  const names = [...myPrio()].filter(n => people.some(p => p.name === n));
+  if (!names.length) return "";
+  const one = n => w.sure.includes(n) ? `<span class="pill done">● ${esc(n)}</span>`
+    : w.maybe.includes(n) ? `<span class="pill maybe">△ ${esc(n)}</span>`
+    : w.near?.includes(n) ? `<span class="pill gray">${esc(n)}：一部の時間だけ</span>`
+    : `<span class="pill todo">${esc(n)}：来られない</span>`;
+  return `<p class="chips" style="gap:6px">${names.map(one).join("")}</p>`;
+}
+// 週ごとのいちばんよい枠（押すとその日へ）。頻度を決めるときに、週ごとに1つずつ見られるように
+function weeklyHtml(weeks, everyone, av) {
+  if (weeks.length < 2) return "";
+  const md = iso => `${+iso.slice(5, 7)}/${+iso.slice(8)}`;
+  const row = ({ week, win: w }) => {
+    if (!w) return `<li><span class="wk">${md(week)}の週</span><span class="sub">候補なし</span></li>`;
+    const d = new Date(w.date + "T00:00:00"), wd = WD[d.getDay()] + (poll.holidays?.includes(w.date) ? "・祝" : "");
+    const pr = w.pri?.length ? `<span class="tag dark">${esc(w.pri.join("・"))}</span>` : w.near?.length ? `<span class="tag">${esc(w.near.join("・"))} 一部</span>` : "";
+    const pl = av ? ` <span class="sub">📍${w.places + w.roomy}か所</span>` : "";
+    return `<li><span class="wk">${md(week)}の週</span><a href="#d-${w.date}" data-goto="d-${w.date}">${md(w.date)}(${wd}) ${hm(w.start)}〜${hm(w.end)}</a> <b>${w.sure.length}/${everyone}人</b>${w.maybe.length ? `<span class="sub">+${w.maybe.length}</span>` : ""} ${pr}${pl}</li>`;
+  };
+  return `<details class="card weekly" open><summary><b>週ごとのいちばんよい枠</b> <span class="sub">押すとその日へ</span></summary><ul class="plain">${weeks.map(row).join("")}</ul></details>`;
+}
+
 function placesOfDay(av, iso) {
   const step = STEP(), s0 = L.toMin(poll.dayStart), e0 = L.toMin(poll.dayEnd), ex = L.excludedOn(poll, iso).slots;
   const rows = (av.places || []).map(p => {
@@ -658,6 +729,11 @@ function placesOfDay(av, iso) {
     `<li>${placeLink(p)} <span class="font-num">${ranges.map(([a, b]) => `${hm(a)}〜${hm(b)}`).join("・")}</span>${capTag(p)}${p.note && !p.name.includes(p.note) ? ` <span class="sub">${esc(p.note)}</span>` : ""}${p.group ? ` <span class="tag">${esc(p.group)}</span>` : ""}</li>`).join("")}</ul></details>`;
 }
 for (const id of ["#dur", "#kind", "#sort", "#min"]) $(id).addEventListener("change", renderPlan);
+// 場所の並べ方（人数に合う順・広い順）。この端末にこの日程調整ごとに覚える
+const psKey = `komadori:psort:${pollId}`;
+const wide = () => !!adminKeyOk && $("#psort").value === "wide";
+$("#psort").value = store.get(psKey, "fit") === "wide" ? "wide" : "fit";
+$("#psort").addEventListener("change", () => { store.set(psKey, $("#psort").value); renderPlan(); });
 $("#pq").addEventListener("input", renderPlan);
 // 場所のグループ：押して選ぶ（いくつでも）。この端末にこの日程調整ごとに覚える
 const pgKey = `komadori:pgroups:${pollId}`;
@@ -833,18 +909,21 @@ $("#placesDel").addEventListener("click", async e => {
 
 // 必須の人（この人が来られない枠は出さない）。最初は呼びたい人の一覧の * の人。押して切り替え（この端末の表示だけ）
 let needed = null;
+// 人を選ぶチップ（必須の人・優先する人で使う）
+function personChips(box, set, attr, names) {
+  const chip = n => `<button type="button" class="tchip" data-${attr}="${esc(n)}" aria-pressed="${set.has(n)}">${esc(n)}</button>`;
+  if (names.length <= 15) { box.innerHTML = names.map(chip).join("") || `<span class="sub">回答した人が出ます</span>`; return; }
+  // 大人数のときは、選んだ人だけを出し、ほかの人はたたんでおく（開いていたら開いたまま）
+  const open = box.querySelector("details")?.open;
+  const chosen = names.filter(n => set.has(n)), rest = names.filter(n => !set.has(n));
+  box.innerHTML = (chosen.length ? chosen.map(chip).join("") : `<span class="sub">まだ選んでいません</span>`)
+    + `<details class="names" style="width:100%" ${open ? "open" : ""}><summary>ほかの人から選ぶ（${rest.length}人）</summary><div class="chips" style="margin-top:8px">${rest.map(chip).join("")}</div></details>`;
+}
 function renderReqChips() {
   if (!needed) needed = new Set((poll.invited || []).filter(x => x.required).map(x => x.name));
   const names = [...new Set([...(poll.invited || []).map(x => x.name), ...people.map(p => p.name)])];
-  const chip = n => `<button type="button" class="tchip" data-req="${esc(n)}" aria-pressed="${needed.has(n)}">${esc(n)}</button>`;
-  if (names.length <= 15) $("#reqChips").innerHTML = names.map(chip).join("") || `<span class="sub">回答した人が出ます</span>`;
-  else {
-    // 大人数のときは、選んだ人だけを出し、ほかの人はたたんでおく（開いていたら開いたまま）
-    const open = $("#reqMore")?.open;
-    const chosen = names.filter(n => needed.has(n)), rest = names.filter(n => !needed.has(n));
-    $("#reqChips").innerHTML = (chosen.length ? chosen.map(chip).join("") : `<span class="sub">まだ選んでいません</span>`)
-      + `<details id="reqMore" class="names" style="width:100%" ${open ? "open" : ""}><summary>ほかの人から選ぶ（${rest.length}人）</summary><div class="chips" style="margin-top:8px">${rest.map(chip).join("")}</div></details>`;
-  }
+  personChips($("#reqChips"), needed, "req", names);
+  personChips($("#prioChips"), prio, "prio", names);
   const max = Math.max(1, names.length), cur = +$("#min").value || 1;
   $("#min").innerHTML = Array.from({ length: max }, (_, i) => `<option value="${i + 1}" ${i + 1 === cur ? "selected" : ""}>${i + 1}人以上</option>`).join("");
 }
@@ -853,12 +932,32 @@ $("#reqChips").addEventListener("click", e => {
   const n = b.dataset.req; needed.has(n) ? needed.delete(n) : needed.add(n);
   renderPlan();
 });
+// 優先する人：この端末にこの日程調整ごとに覚える（決めるまで何度も見返すので）
+const prKey = `komadori:prio:${pollId}`;
+let prio = new Set(store.get(prKey, []));
+const myPrio = () => adminKeyOk ? prio : new Set();   // 優先する人・週ごとのまとめ・場所の広い順は、管理用の URL で開いたときだけ
+$("#prioChips").addEventListener("click", e => {
+  const b = e.target.closest("[data-prio]"); if (!b) return;
+  const n = b.dataset.prio; prio.has(n) ? prio.delete(n) : prio.add(n);
+  store.set(prKey, [...prio]);
+  renderPlan();
+});
 $("#plan").addEventListener("click", async e => {
-  const b = e.target.closest("[data-copyslot]");
+  // 週ごとのまとめの日付：URL の # を変えずにその日へ（管理用の URL の #admin=… を消さないように）
+  const go = e.target.closest("a[data-goto]");
+  if (go) { e.preventDefault(); document.getElementById(go.dataset.goto)?.scrollIntoView({ behavior: "smooth", block: "start" }); return; }
+  const b = e.target.closest("[data-pick]");
   if (b) {
-    // 空いている場所があれば、1つめを「@場所」で付ける
-    const [date, s, en, place] = b.dataset.copyslot.split("|");
-    copy(L.slotLine({ date, start: +s, end: +en, title: poll.title, place }), "文面をコピーしました");
+    // 投稿する候補に入れる・外す。場所は、空いている場所の1つめを最初に選んでおく
+    const [date, s, en] = b.dataset.pick.split("|"), start = +s, end = +en;
+    const i = picks.findIndex(x => x.date === date && x.start === start && x.end === end);
+    if (i >= 0) picks.splice(i, 1);
+    else {
+      const av = avail ? L.filterPlaces(avail, { groups: [...pgroups], q: $("#pq").value }) : null;
+      const w = lastWins.find(x => x.date === date && x.start === start && x.end === end);
+      picks.push({ date, start, end, place: av && w ? (fitPlaces(av, date, w)[0]?.name || "") : "", memo: "" });
+    }
+    savePicks(); renderPlan(true);
     return;
   }
   const c = e.target.closest("[data-cell]"); if (!c) return;
