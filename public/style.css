@@ -260,12 +260,13 @@ dialog::backdrop { background: rgb(0 0 0 / .45); }
 .dlgfoot { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; border-top: 1.5px solid var(--line); padding-top: 16px; }
 
 /* みんなの状況：条件 */
-.condsum { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; min-height: 36px; font-size: 14px; list-style: none; }
+/* 「条件」と灰色の文字は大きさがちがうので、上下中央ではなく文字の下の線（ベースライン）でそろえる（中央だと少しずれて見える）。高さは上下の余白でとる */
+.condsum { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 8px; padding: 7px 0; font-size: 14px; list-style: none; cursor: pointer; }
 .condsum::-webkit-details-marker { display: none; }
 /* 開け閉めするカード（条件）：閉じたときに中身のぶんの gap が残らないように gap は 0、上下は詰める。中身は包んだ要素の margin で離す */
 details.card { gap: 0; }
 
-.condsum .change { margin-left: auto; font-size: 13px; font-weight: 700; color: var(--link); display: inline-flex; align-items: center; gap: 2px; }
+.condsum .change { align-self: center; margin-left: auto; font-size: 13px; font-weight: 700; color: var(--link); display: inline-flex; align-items: center; gap: 2px; }
 /* 開け閉めできることがわかるように、下向きの印（開いているときは上向き）と「変更」「閉じる」 */
 .condsum .chev { flex: none; transition: transform .15s; }
 details[open] > .condsum .chev { transform: rotate(180deg); }

@@ -431,14 +431,14 @@ export function aiBrief({ poll, people, avail = null, windows = [], conds = {}, 
   }
   const cond = [fmtDuration(conds.duration || 120), conds.kindLabel || "", conds.min > 1 ? `${conds.min}人以上` : ""].filter(Boolean).join("・");
   L.push(``, `# アプリが出した候補（日ごとに上位3つ。${cond}）`);
-  const total = people.length;
+  const total = people.length, cand = new Set(poll.candDates || []);
   for (const iso of dates) {
     const ws = windows.filter(w => w.date === iso).slice(0, 3);
     for (const w of ws) {
       const missing = people.map(p => p.name).filter(n => !w.sure.includes(n) && !w.maybe.includes(n));
       const pls = avail ? placesForWindow(avail, iso, w.start, w.end, w.sure.length + w.maybe.length) : null;
       const usable = pls ? [...pls.fit, ...pls.unknown, ...pls.roomy].map(p => p.name) : [];
-      L.push(`- ${day(iso)} ${fmtMin(w.start)}〜${fmtMin(w.end)}：参加 ${w.sure.length}/${total}人（● ${names(w.sure) || "なし"}${w.maybe.length ? `／△ ${names(w.maybe)}` : ""}）`
+      L.push(`- ${day(iso)}${cand.has(iso) ? "［候補日］" : ""} ${fmtMin(w.start)}〜${fmtMin(w.end)}：参加 ${w.sure.length}/${total}人（● ${names(w.sure) || "なし"}${w.maybe.length ? `／△ ${names(w.maybe)}` : ""}）`
         + (missing.length ? `・来られない・未回答：${names(missing)}` : "")
         + (w.near?.length ? `・一部の時間だけ来られる：${names(w.near)}` : "")
         + (pls ? `・空いている場所：${usable.length ? usable.join("、") : "なし"}` : ""));

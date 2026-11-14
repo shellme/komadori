@@ -244,6 +244,7 @@ test("AI に相談する用の文面：設定・回答・場所・アプリの�
   assert.match(t, /^# お願い/);
   assert.match(t, /- 優先する人（来られる日を先に取りたい人）：アキ\n/);
   assert.match(L.aiBrief({ poll: { ...p, candDates: ["2026-12-05", "2027-01-01"] }, people: ppl }), /- 候補日（管理する人が選んだ日。メンバーにも見せている）：12\/5\(土\)\n/);   // 期間の外は出さない
+  assert.match(L.aiBrief({ poll: { ...p, candDates: ["2026-12-05"] }, people: ppl, windows }), /- 12\/5\(土\)［候補日］ 13:00〜15:00：/);   // アプリの候補にも印
   assert.match(t, /- 対象の日：土日祝だけ/);
   assert.match(t, /  - 12\/6 18:00-20:00/);                          // 使わない時間帯
   assert.match(t, /## アキ\n- 12\/5\(土\) ● 13:00-15:00 💬 15時に出ます\n- 12\/6\(日\) ×/);
