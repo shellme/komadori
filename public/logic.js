@@ -690,3 +690,18 @@ export function progress(poll, people) {
   const dates = activeDates(poll);
   return people.map(p => ({ name: p.name, left: dates.filter(d => !answeredOn(p.days, d)).length, total: dates.length }));
 }
+
+// ---------- 自分の日程調整の一覧（端末と Google の引き継ぎで合わせる） ----------
+export const RECENT_MAX = 50;
+/** 2つの一覧を1つにする。同じ日程調整は新しく開いたほうの名前を使い、管理用の鍵はどちらかにあれば残す。新しい順 */
+export function mergeRecent(a = [], b = [], max = RECENT_MAX) {
+  const by = new Map();
+  for (const r of [...(a || []), ...(b || [])]) {
+    if (!r || typeof r.id !== "string" || !/^[a-z0-9]{20}$/.test(r.id)) continue;
+    const old = by.get(r.id);
+    const newer = !old || (r.at || 0) > (old.at || 0) ? r : old;
+    const admin = r.admin || old?.admin;
+    by.set(r.id, { id: r.id, title: String(newer.title || ""), emoji: String(newer.emoji || ""), ...(admin ? { admin: String(admin) } : {}), at: Math.max(r.at || 0, old?.at || 0) });
+  }
+  return [...by.values()].sort((x, y) => y.at - x.at).slice(0, max);
+}

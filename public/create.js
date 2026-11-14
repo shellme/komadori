@@ -3,6 +3,7 @@ import { db, ready, doc, setDoc, serverTimestamp, Timestamp } from "./fb.js";
 import * as L from "./logic.js";
 import { JP_HOLIDAYS } from "./holidays.js";
 import { $, esc, copy, randomId, sha256, store, remember, drawEmoji, firstEmoji, toast } from "./ui.js";
+import { google, syncRecent, connectGoogle, disconnect, connectError } from "./account.js";
 
 const DURATIONS = [60, 120, 180];
 // アイコンの候補（押して選ぶ。ほかの絵文字は横の欄に入れる）
@@ -54,14 +55,54 @@ const t = new Date(); t.setDate(t.getDate() + 1);
 $("#from").value = iso(t);
 $("#to").value = L.addDays(iso(t), 27);
 
-// この端末で見た日程調整
-const recent = store.get("komadori:recent", []);
-if (recent.length) {
-  $("#recent").hidden = false;
-  $("#recentList").innerHTML = recent.map(r =>
+// 自分の日程調整（この端末で見たもの。Google とつないでいれば、ほかの端末の分も）
+let made = false;   // つくり終えた画面を出しているか
+function renderRecent(list, g) {
+  if (made) return;
+  $("#recent").hidden = !list.length;
+  $("#acctIntro").hidden = !!list.length || !!g;
+  $("#recentHead").textContent = g ? "あなたの日程調整" : "この端末で見た日程調整";
+  $("#recentList").innerHTML = list.map(r =>
     `<li><a style="color:var(--ink);font-weight:700;text-decoration:none" href="/p/${esc(r.id)}${r.admin ? `#admin=${esc(r.admin)}` : ""}">${esc(r.emoji ? r.emoji + " " : "")}${esc(r.title)}</a> ${r.admin ? '<span class="tag dark">つくった日程調整</span>' : ""}</li>`).join("");
+  $("#acct").innerHTML = g
+    ? `Google（${esc(g.email || "")}）で引き継いでいます。ほかの端末でも同じアカウントでログインすると開けます <button type="button" class="linkbtn" id="logout">ログアウト</button>`
+    : `端末を変えても開けるように、<button type="button" class="linkbtn" data-google>Google とつなぐ</button>こともできます（任意）`;
   drawEmoji($("#recentList"));
 }
+function doneAcct(g) {
+  $("#doneAcct").innerHTML = g
+    ? "Google でつないでいるので、ほかの端末のトップにも出ます"
+    : `この端末には覚えておきます（トップの「この端末で見た日程調整」から開けます）。<button type="button" class="linkbtn" data-google>Google とつなぐ</button>と、ほかの端末からも開けます`;
+}
+async function refreshRecent() {
+  const g = await google().catch(() => null);
+  renderRecent(await syncRecent().catch(() => store.get("komadori:recent", [])), g);
+  if (made) doneAcct(g);
+}
+renderRecent(store.get("komadori:recent", []), null);
+refreshRecent();
+
+document.addEventListener("click", async e => {
+  const b = e.target.closest("[data-google]");
+  if (!b) return;
+  b.disabled = true;
+  try {
+    const { switched } = await connectGoogle();
+    toast("Google とつなぎました");
+    if (switched && !made) { location.reload(); return; }
+    await refreshRecent();
+  } catch (err) {
+    console.error(err);
+    const msg = connectError(err); if (msg) toast(msg);
+  } finally { b.disabled = false; }
+});
+document.addEventListener("click", async e => {
+  const b = e.target.closest("#logout");
+  if (!b) return;
+  if (b.dataset.armed !== "1") { b.dataset.armed = "1"; b.textContent = "この端末の一覧も消してログアウト"; return; }
+  await disconnect();
+  location.reload();
+});
 
 const dayType = () => document.querySelector('input[name="dayType"]:checked')?.value || "all";
 
@@ -113,6 +154,9 @@ $("#create").addEventListener("submit", async e => {
       device: uid,
     });
     remember({ id, title: p.title, emoji, admin: key });
+    made = true;
+    syncRecent().catch(err => console.error(err));
+    doneAcct(await google().catch(() => null));
     const base = `${location.origin}/p/${id}`;
     $("#answerUrl").value = base;
     shareText = L.shareText({ emoji, title: p.title, from: p.from, to: p.to, url: base, holidays: JP_HOLIDAYS });

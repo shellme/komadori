@@ -503,3 +503,17 @@ test("よい枠：4人で、どの部屋も「5人から」なら、広めの部
   // 広めの部屋は、人数に近い（下限が小さい）部屋を先に
   assert.deepEqual(L.placesForWindow(avail, "2026-12-05", 1200, 1320, 4).roomy.map(p => p.id), ["B", "A"]);
 });
+
+test("mergeRecent：同じ日程調整は1つにし、管理用の鍵はどちらかにあれば残す", () => {
+  const A = "a".repeat(20), B = "b".repeat(20), C = "c".repeat(20);
+  const here = [{ id: A, title: "新しい名前", emoji: "🎸", at: 30 }, { id: B, title: "B", at: 10 }];
+  const cloud = [{ id: A, title: "古い名前", emoji: "", admin: "key1", at: 20 }, { id: C, title: "C", admin: "key2", at: 25 }, { id: "bad", title: "x", at: 99 }];
+  const m = L.mergeRecent(here, cloud);
+  assert.deepEqual(m.map(r => r.id), [A, C, B]);
+  assert.equal(m[0].title, "新しい名前");
+  assert.equal(m[0].emoji, "🎸");
+  assert.equal(m[0].admin, "key1");
+  assert.equal(m[2].admin, undefined);
+  assert.equal(L.mergeRecent(here, cloud, 2).length, 2);
+  assert.deepEqual(L.mergeRecent(null, undefined), []);
+});

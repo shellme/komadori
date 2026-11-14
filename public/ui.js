@@ -46,7 +46,7 @@ export function remember(poll) {
   const list = all.filter(x => x.id !== poll.id);
   const admin = poll.admin || old.admin;
   list.unshift({ id: poll.id, title: poll.title, emoji: poll.emoji || "", ...(admin ? { admin } : {}), at: Date.now() });
-  store.set("komadori:recent", list.slice(0, 20));
+  store.set("komadori:recent", list.slice(0, 50));
 }
 
 // ---------- 絵文字（Twemoji で描く。https://github.com/jdecked/twemoji 、画像は CC-BY 4.0） ----------

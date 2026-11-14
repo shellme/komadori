@@ -6,6 +6,7 @@ import { db, ready, call, doc, getDoc, setDoc, addDoc, collection, onSnapshot, s
 import * as L from "./logic.js";
 import { JP_HOLIDAYS } from "./holidays.js";
 import { $, esc, copy, saveFile, randomId, sha256, store, remember, toast, toastUndo, drawEmoji, setFavicon, firstEmoji, growAll, grow } from "./ui.js";
+import { syncRecent, forget } from "./account.js";
 
 const pollId = location.pathname.split("/")[2] || "";
 const adminKey = new URLSearchParams(location.hash.slice(1)).get("admin");
@@ -46,6 +47,7 @@ async function load() {
   setFavicon(poll.emoji);
   const isAdmin = adminKey && (await sha256(adminKey)) === poll.adminKeyHash;
   remember({ id: pollId, title: poll.title, emoji: poll.emoji, ...(isAdmin ? { admin: adminKey } : {}) });
+  syncRecent().catch(err => console.error(err));   // Google とつないでいれば、一覧をほかの端末にも
   renderHeader(isAdmin);
   buildTpl();
   $("#poll").hidden = false;
@@ -849,7 +851,7 @@ $("#pollDel").addEventListener("click", async e => {
   b.disabled = true;
   try {
     await call("deletePoll", { pollId, key: adminKeyOk });
-    store.set("komadori:recent", store.get("komadori:recent", []).filter(x => x.id !== pollId));
+    await forget(pollId).catch(err => console.error(err));
     location.href = "/";
   } catch (err) { console.error(err); toast("削除できませんでした"); b.disabled = false; }
 });
