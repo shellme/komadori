@@ -648,6 +648,8 @@ $("#aiSave").addEventListener("click", () => {
 // 日程調整のあいだに「この日は空けておこう」と思ってもらうため。時間帯は決めない（あとで調整するので日だけ）
 const candDates = () => (poll.candDates || []).filter(d => d >= poll.from && d <= poll.to);
 const isCand = iso => candDates().includes(iso);
+// 開け閉めの印（「条件」と同じ）
+const CHEV = `<span class="change"><span class="if-closed">開く</span><span class="if-open">閉じる</span><svg class="chev" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg></span>`;
 function renderCand() {
   const box = $("#candBox"), ds = candDates();
   box.hidden = !ds.length && !adminKeyOk;
@@ -656,7 +658,7 @@ function renderCand() {
   const list = ds.map(d => L.fmtDay(d, hol)).join("・");
   // 開け閉めは覚えておく（描き直しで閉じないように）。はじめは、パソコンは開く・スマホは閉じる（見出しに日付が出るので、カレンダーは開いたときだけ）
   const open = box.querySelector("details") ? box.querySelector("details").open : !isSP();
-  box.innerHTML = `<details class="card candbox" ${open ? "open" : ""}><summary><b>📌 候補日</b> ${ds.length ? `<span class="candlist">${esc(list)}</span>` : `<span class="sub">まだありません</span>`}</summary><div class="candbody">
+  box.innerHTML = `<details class="card candbox" ${open ? "open" : ""}><summary class="condsum"><b>📌 候補日</b>${ds.length ? `<span class="candlist">${esc(list)}</span>` : `<span class="sub">まだありません</span>`}${CHEV}</summary><div class="candbody">
     <p class="sub">${ds.length ? `この中から日程を決める予定です。できるだけ予定を空けておいてください（時間帯はあとで決めます）` : "みんなの状況の日ごとの「候補日に入れる」で選ぶと、ここと回答の画面に出ます。回答する人にも見えます"}</p>
     ${ds.length ? candCalendar(ds) : ""}
   </div></details>`;

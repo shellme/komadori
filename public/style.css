@@ -262,6 +262,10 @@ dialog::backdrop { background: rgb(0 0 0 / .45); }
 /* みんなの状況：条件 */
 .condsum { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; min-height: 36px; font-size: 14px; list-style: none; }
 .condsum::-webkit-details-marker { display: none; }
+/* 開け閉めするカード（条件・AIに相談する・候補日）：閉じたときに中身のぶんの gap が残らないように gap は 0、上下は詰める。中身は包んだ要素の margin で離す */
+details.card { gap: 0; }
+.aibox, .candbox { padding-top: 12px; padding-bottom: 12px; }
+.aibox > .condsum, .candbox > .condsum { cursor: pointer; }
 .condsum .change { margin-left: auto; font-size: 13px; font-weight: 700; color: var(--link); display: inline-flex; align-items: center; gap: 2px; }
 /* 開け閉めできることがわかるように、下向きの印（開いているときは上向き）と「変更」「閉じる」 */
 .condsum .chev { flex: none; transition: transform .15s; }
@@ -491,12 +495,10 @@ div.howto .menu .pop { left: 0; right: auto; }
 /* 優先する人のようす（候補の中） */
 .pill.maybe { background: var(--maybe); color: #111; }
 /* AI に相談する */
-.aibox > summary { cursor: pointer; }
 /* details の中身には details の gap が効かないので、中身を包んで間をあける */
 .aibox .aibody { display: grid; gap: 12px; margin-top: 12px; }
 .aibox .aibody .actions { margin-top: 4px; }
 /* 候補日 */
-.candbox > summary { cursor: pointer; }
 .candbox .candbody { display: grid; gap: 10px; margin-top: 10px; }
 .candlist { font-family: var(--f-num); font-weight: 700; font-size: 14px; }
 .pcal { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 12px 20px; }
