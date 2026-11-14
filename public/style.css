@@ -502,4 +502,6 @@ div.howto .menu .pop { left: 0; right: auto; }
 .picks .dhead b { font-size: 18px; }
 /* AI に相談する */
 .aibox > summary { cursor: pointer; }
-.aibox[open] { gap: 10px; }
+/* details の中身には details の gap が効かないので、中身を包んで間をあける */
+.aibox .aibody { display: grid; gap: 12px; margin-top: 12px; }
+.aibox .aibody .actions { margin-top: 4px; }
