@@ -269,6 +269,9 @@ test("AI に相談する用の文面：設定・回答・場所・アプリの�
   assert.doesNotMatch(anon, /アキ|ベン|チカ/);
   assert.match(anon, /## メンバーA\n/);
   assert.match(anon, /優先する人（来られる日を先に取りたい人）：メンバーA/);
+  // ファイルの名前：使えない文字と空白は _ に
+  assert.equal(L.briefFileName("本番前の練習 2/6:新宿", "2026-11-14"), "本番前の練習_2_6_新宿_AI相談_2026-11-14.md");
+  assert.equal(L.briefFileName("", "2026-11-14"), "日程調整_AI相談_2026-11-14.md");
 });
 
 test("候補の枠の文面", () => {

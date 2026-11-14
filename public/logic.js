@@ -449,6 +449,10 @@ export function aiBrief({ poll, people, avail = null, windows = [], conds = {}, 
   return L.join("\n");
 }
 
+/** AI に相談する用のファイルの名前：「本番前の練習_AI相談_2026-11-14.md」（ファイル名に使えない文字は _ に） */
+export const briefFileName = (title, today) =>
+  `${String(title || "日程調整").replace(/[\\/:*?"<>|\s]+/g, "_").replace(/^_+|_+$/g, "").slice(0, 40) || "日程調整"}_AI相談_${today}.md`;
+
 /** 長さ（分）を「2時間」「1時間30分」に */
 export function fmtDuration(min) {
   const h = Math.floor(min / 60), m = min % 60;

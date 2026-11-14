@@ -5,7 +5,7 @@
 import { db, ready, call, doc, getDoc, setDoc, addDoc, collection, onSnapshot, serverTimestamp } from "./fb.js";
 import * as L from "./logic.js";
 import { JP_HOLIDAYS } from "./holidays.js";
-import { $, esc, copy, randomId, sha256, store, remember, toast, toastUndo, drawEmoji, setFavicon, firstEmoji, growAll, grow } from "./ui.js";
+import { $, esc, copy, saveFile, randomId, sha256, store, remember, toast, toastUndo, drawEmoji, setFavicon, firstEmoji, growAll, grow } from "./ui.js";
 
 const pollId = location.pathname.split("/")[2] || "";
 const adminKey = new URLSearchParams(location.hash.slice(1)).get("admin");
@@ -643,8 +643,14 @@ const pkKey = `komadori:picks:${pollId}`;
 let picks = (store.get(pkKey, []) || []).filter(x => x && L.isIso(x.date) && Number.isInteger(x.start) && Number.isInteger(x.end));
 let lastWins = [], lastEveryone = 0, lastAv = null, lastDays = [], lastConds = {};
 // AI に相談する用にコピー（管理用の URL だけ）。候補と場所は、いまの条件で出したもの
-$("#aiCopy").addEventListener("click", () => copy(L.aiBrief({ poll, people, avail: lastAv, windows: lastWins,
-  conds: { ...lastConds, dates: lastDays }, anonymize: $("#aiAnon").checked }), "AIに相談する用の文面をコピーしました"));
+const brief = () => L.aiBrief({ poll, people, avail: lastAv, windows: lastWins, conds: { ...lastConds, dates: lastDays }, anonymize: $("#aiAnon").checked });
+$("#aiCopy").addEventListener("click", () => copy(brief(), "AIに相談する用の文面をコピーしました"));
+// 長いときは、Markdown のファイルで保存して AI に添付する
+$("#aiSave").addEventListener("click", () => {
+  const d = new Date(), today = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  saveFile(L.briefFileName(poll.title, today), brief() + "\n");
+  toast("ファイルを保存しました");
+});
 const savePicks = () => store.set(pkKey, picks);
 const picked = (date, start, end) => picks.some(x => x.date === date && x.start === start && x.end === end);
 function renderPicks(force = false) {
