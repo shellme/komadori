@@ -504,6 +504,8 @@ div.howto .menu .pop { left: 0; right: auto; }
 /* 優先する人のようす（候補の中） */
 .pill.maybe { background: var(--maybe); color: #111; }
 /* 候補日（期間の下の1行と、カレンダーのダイアログ） */
+#candBody { display: grid; gap: 16px; }
+#candBody > p { margin: 0; }
 .candline { margin: 8px 0 0; font-size: 14px; display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 8px; }
 .candlist { font-family: var(--f-num); font-weight: 700; }
 .linkbtn { border: 0; background: none; padding: 0; color: var(--link); font: inherit; font-weight: 700; cursor: pointer; }
@@ -521,7 +523,10 @@ div.howto .menu .pop { left: 0; right: auto; }
 .statusline b { color: var(--ink); font-family: var(--f-num); }
 .statusline .sep { margin: 0 2px; }
 .howbox { margin: 0 2px 12px; font-size: 13px; color: var(--muted); }
-.howbox > summary { cursor: pointer; font-weight: 700; color: var(--link); list-style: none; width: fit-content; }
+/* 開いて読めるとわかるように、「条件」と同じ ⌄ を付ける（開くと上向き） */
+.howbox > summary { cursor: pointer; font-weight: 700; color: var(--link); list-style: none; width: fit-content; display: inline-flex; align-items: center; gap: 2px; min-height: 32px; }
+.howbox > summary .chev { transition: transform .15s; }
+.howbox[open] > summary .chev { transform: rotate(180deg); }
 .howbox > summary::-webkit-details-marker { display: none; }
 .howbox .howbody { display: grid; gap: 6px; margin-top: 8px; }
 .howbox .howbody p { margin: 0; }
