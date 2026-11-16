@@ -176,6 +176,8 @@ exports.pollPage = onRequest({ region: REGION, memory: "256MiB", maxInstances: 5
         html = html
           .replace(/<!--OGP-->[\s\S]*?<!--\/OGP-->/, () => ogpHtml(o, `https://komadori.web.app/p/${id}`))
           .replace("<title>コマドリ</title>", () => `<title>${escHtml(o.title)}｜コマドリ</title>`)
+          // 読み込み中の仮の画面にも、名前と期間を先に出す（中身が届くまでの間も、どの日程調整かわかるように）
+          .replace(/<!--SKHEAD-->[\s\S]*?<!--\/SKHEAD-->/, () => `<h1>${escHtml(`${snap.get("emoji") ? snap.get("emoji") + " " : ""}${o.title}`)}</h1><p class="sub">${escHtml(o.desc)}</p>`)
           // 共有の表示でサイト名の横に出る小さい印を、この日程調整のアイコンにする
           .replace('<link rel="icon" href="/icon.png" type="image/png" sizes="72x72">', () => `<link rel="icon" href="${escHtml(o.image)}" type="image/png" sizes="72x72">`)
           .replace('<link rel="apple-touch-icon" href="/icon.png">', () => `<link rel="apple-touch-icon" href="${escHtml(o.image)}">`);

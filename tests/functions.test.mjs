@@ -154,4 +154,7 @@ test("pollPage：名前は HTML に入れても崩れない（< や $& があっ
   const html = await (await fetch(`http://127.0.0.1:5011/demo-komadori/asia-northeast1/pollPage/p/${pid}`)).text();
   assert.ok(html.includes(`<title>&lt;b&gt;練習&lt;/b&gt; $&amp; $&#39; 100%｜コマドリ</title>`));
   assert.ok(!html.includes("<b>練習</b>"));
+  // 読み込み中の仮の画面にも、名前と期間を先に入れる
+  assert.ok(html.includes(`<h1>&lt;b&gt;練習&lt;/b&gt; $&amp; $&#39; 100%</h1><p class="sub">12/1(火)〜12/31(木)の日程調整</p>`));
+  assert.ok(!html.includes("<!--SKHEAD-->"));
 });
