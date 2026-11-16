@@ -35,3 +35,9 @@ export const ready = new Promise((resolve, reject) => {
     else signInAnonymously(auth).catch(reject);   // 前のログインが残っていないときだけ（残っているのに呼ぶと、Google とのつながりが外れる）
   });
 });
+
+/** 書き込む前に使う uid。開いたときのログインに失敗していても、ここでもう一度ログインを試す（読み直さなくても、押し直せば保存できるように） */
+export async function currentUid() {
+  try { return await ready; }
+  catch { return auth.currentUser?.uid || (await signInAnonymously(auth)).user.uid; }
+}

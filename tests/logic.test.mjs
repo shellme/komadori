@@ -517,3 +517,12 @@ test("mergeRecent：同じ日程調整は1つにし、管理用の鍵はどち�
   assert.equal(L.mergeRecent(here, cloud, 2).length, 2);
   assert.deepEqual(L.mergeRecent(null, undefined), []);
 });
+
+test("saveErrorText：原因の種類で文を分け、エラーの名前を付ける", () => {
+  assert.match(L.saveErrorText({ code: "unavailable" }), /^通信できませんでした.*（unavailable）$/);
+  assert.match(L.saveErrorText({ code: "auth/network-request-failed" }), /^通信できませんでした.*（network-request-failed）$/);
+  assert.match(L.saveErrorText({ code: "permission-denied" }), /ページを読み直して.*Safari.*（permission-denied）$/);
+  assert.match(L.saveErrorText({ code: "auth/user-token-expired" }), /Safari.*（user-token-expired）$/);
+  assert.match(L.saveErrorText(new TypeError("x")), /^保存できませんでした。ページを読み直して.*（TypeError）$/);
+  assert.match(L.saveErrorText(null), /（unknown）$/);
+});

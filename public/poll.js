@@ -2,7 +2,7 @@
 //   時間を入力：回答の状況の行・⚡ まとめて入力（曜日ごと）・未回答／すべて（件数）・月の切り替え・
 //              歯車（マスを押したときの動き・ロック）・日ごとの ⋯（コメント・この日の入力を消す）・まとめて・× 参加不可・取り消す
 //   みんなの状況：条件（集まりたい長さ・対象の日・参加できる人数・並べ方）・日ごとの人数のマス（+調整）・おすすめの時間・参加できない人・コメント
-import { db, ready, call, doc, getDoc, setDoc, addDoc, collection, onSnapshot, serverTimestamp } from "./fb.js";
+import { db, ready, currentUid, call, doc, getDoc, setDoc, addDoc, collection, onSnapshot, serverTimestamp } from "./fb.js";
 import * as L from "./logic.js";
 import { JP_HOLIDAYS } from "./holidays.js";
 import { $, esc, copy, saveFile, randomId, sha256, store, remember, toast, toastUndo, drawEmoji, setFavicon, firstEmoji, growAll, grow } from "./ui.js";
@@ -152,11 +152,11 @@ function save(changedDates) {
   const dist = d => d < poll.from ? poll.from.localeCompare(d) && (Date.parse(poll.from) - Date.parse(d)) : d > poll.to ? Date.parse(d) - Date.parse(poll.to) : 0;
   const id = me.id, days = Object.fromEntries(Object.entries(me.days).sort((a, b) => dist(a[0]) - dist(b[0])).slice(0, 100));
   saving = saving.then(async () => {
-    const uid = await ready;
+    const uid = await currentUid();
     await setDoc(doc(db, "polls", pollId, "people", id), { name, required: isRequired(name), note: "", days, updatedAt: serverTimestamp(), device: uid });
     await addDoc(collection(db, "polls", pollId, "people", id, "log"), { at: serverTimestamp(), device: uid, name, dates: changedDates.slice(0, 100) });
     for (const d of changedDates) { const s = document.querySelector(`#days [data-date="${d}"] .saved`); if (s) s.textContent = "保存しました"; }
-  }).catch(err => { console.error(err); toast("保存できませんでした。通信を確かめて、もう一度押してください"); })
+  }).catch(err => { console.error(err); toast(L.saveErrorText(err)); })
     .finally(() => changedDates.forEach(d => dirtyDays.delete(d)));
   renderWho();
 }
@@ -694,7 +694,7 @@ async function toggleCand(iso) {
   poll = { ...poll, candDates: next };
   renderPlan(); renderDays();
   try { await call("updatePoll", { pollId, key: adminKeyOk, patch: { candDates: next } }); toast(next.includes(iso) ? "候補日に入れました（みんなに見えます）" : "候補日から外しました"); }
-  catch (err) { poll = { ...poll, candDates: before }; renderPlan(); renderDays(); toast(`保存できませんでした：${err.message || err}`); }
+  catch (err) { poll = { ...poll, candDates: before }; renderPlan(); renderDays(); toast(err?.code?.startsWith("functions/") ? `保存できませんでした：${err.message}` : L.saveErrorText(err)); }
 }
 
 // 候補の枠に空いている場所：人数に合う場所 → 人数の決まりがない場所 → 広めの場所の順。入りきらない場所は数だけ出す

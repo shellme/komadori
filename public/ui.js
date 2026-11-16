@@ -6,7 +6,7 @@ export function toast(msg) {
   let el = $("#toast");
   if (!el) { el = document.createElement("div"); el.id = "toast"; el.setAttribute("role", "status"); document.body.append(el); }
   el.textContent = msg; el.classList.add("show");
-  clearTimeout(el._t); el._t = setTimeout(() => el.classList.remove("show"), 2200);
+  clearTimeout(el._t); el._t = setTimeout(() => el.classList.remove("show"), Math.max(2200, String(msg).length * 90));   // 長い文は読み終わるまで出す
 }
 
 export async function copy(text, msg = "コピーしました") {
