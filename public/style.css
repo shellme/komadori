@@ -537,3 +537,14 @@ div.howto .menu .pop { left: 0; right: auto; }
 .howbox .howbody p { margin: 0; }
 /* 日へ移ったとき、上に貼りつく帯（.modebar）に日付が隠れないように */
 #plan > .card[id^="d-"], #days > .card[data-date] { scroll-margin-top: 72px; }
+
+/* 読み込み中の仮の画面（形だけ。ゆっくり明るさが変わる） */
+.sk { display: grid; gap: 12px; }
+.sk h1, .sk p { margin: 0; }
+.sk .card { margin: 0; gap: 12px; }
+.skb, .skgrid > span { display: block; height: 14px; border-radius: 7px; background: var(--chip); animation: skpulse 1.4s ease-in-out infinite; }
+.skrow { display: flex; gap: 8px; }
+.skgrid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px; }
+.skgrid > span { height: 40px; border-radius: 10px; }
+.sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+@keyframes skpulse { 50% { opacity: .45; } }

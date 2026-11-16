@@ -21,13 +21,32 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Outfit:wght@500..900&display=swap">
 <link rel="stylesheet" href="/style.css">
-<script src="https://cdn.jsdelivr.net/npm/@twemoji/api@15.1.0/dist/twemoji.min.js" crossorigin="anonymous"></script>
+<script defer src="https://cdn.jsdelivr.net/npm/@twemoji/api@15.1.0/dist/twemoji.min.js" crossorigin="anonymous"></script>
 
 </head>
 <body>
 <header class="top"><a href="/" class="brand"><span class="brandicon" aria-hidden="true"></span>コマドリ</a></header>
 <main>
-  <p id="loading" class="sub">読み込んでいます…</p>
+  <!-- 読み込み中：形だけの仮の画面。名前と期間は、サーバー（pollPage）が先に入れて返す -->
+  <div id="loading" class="sk" aria-busy="true">
+    <!--SKHEAD--><h1><span class="skb" style="width:62%;height:30px"></span></h1>
+    <p class="sub"><span class="skb" style="width:78%"></span></p><!--/SKHEAD-->
+    <p class="sr">読み込んでいます…</p>
+    <div class="skrow"><span class="skb" style="width:64px;height:34px;border-radius:999px"></span><span class="skb" style="width:150px;height:34px;border-radius:999px"></span></div>
+    <span class="skb" style="height:48px;border-radius:16px"></span>
+    <div class="card">
+      <span class="skb" style="width:30%"></span>
+      <span class="skb" style="height:44px;border-radius:12px"></span>
+    </div>
+    <div class="card">
+      <span class="skb" style="width:40%;height:22px"></span>
+      <div class="skgrid"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></div>
+    </div>
+    <div class="card">
+      <span class="skb" style="width:40%;height:22px"></span>
+      <div class="skgrid"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></div>
+    </div>
+  </div>
   <div id="missing" hidden>
     <h1>この日程調整は見つかりません</h1>
     <p class="empty">URL がまちがっているか、削除された日程調整です</p>
