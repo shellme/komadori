@@ -705,3 +705,15 @@ export function mergeRecent(a = [], b = [], max = RECENT_MAX) {
   }
   return [...by.values()].sort((x, y) => y.at - x.at).slice(0, max);
 }
+
+// ---------- 保存できなかったときの文 ----------
+/** エラーの種類ごとに、どうすればよいかを返す。末尾にエラーの名前を付ける（相談を受けたときに、スクリーンショットで原因が分かるように） */
+export function saveErrorText(err) {
+  const code = String(err?.code || err?.name || "unknown").replace(/^(auth|firestore)\//, "");
+  const offline = ["unavailable", "deadline-exceeded", "network-request-failed"];
+  const auth = ["permission-denied", "unauthenticated", "user-token-expired", "invalid-user-token", "user-disabled", "internal-error", "admin-restricted-operation"];
+  const msg = offline.includes(code) ? "通信できませんでした。電波のよいところで、もう一度押してください"
+    : auth.includes(code) ? "保存できませんでした。ページを読み直して、もう一度押してください。LINE などのアプリの中で開いているときは、Safari や Chrome で開くと保存できることがあります"
+    : "保存できませんでした。ページを読み直して、もう一度押してください";
+  return `${msg}（${code}）`;
+}
