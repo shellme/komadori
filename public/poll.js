@@ -648,7 +648,9 @@ $("#aiSave").addEventListener("click", () => {
   toast("ファイルを保存しました");
 });
 // ---------- 候補日（管理する人が選び、回答する人にも見せる） ----------
-// 日程調整のあいだに「この日は空けておこう」と思ってもらうため。時間帯は決めない（あとで調整するので日だけ）
+// 集まれる人が多く、場所も取れそうな日を、管理する人が選ぶ。回答が増えるたびに見直すので入れ替わる（決まった日ではない）。
+// 回答する人には、いまどの辺りで考えているかを見せ、まだ回答していない候補日があれば先に答えてもらう。時間帯は決めない
+
 const candDates = () => (poll.candDates || []).filter(d => d >= poll.from && d <= poll.to);
 const isCand = iso => candDates().includes(iso);
 // 期間の下の1行（「📌 候補日 1/16(土)・2/6(土)　カレンダー ›」）。カレンダーはダイアログで開く
@@ -663,8 +665,12 @@ function renderCand() {
   $("#candQuick").hidden = !ds.length;
   $("#candQuickN").textContent = ds.length || "";
 }
-// 読む人がすること順に：何の日か → してほしいこと → まだ決まっていないこと。管理する人には変え方も
-const candDlgHtml = () => `<p><b>いまのところ、この日で考えています。</b>なるべく予定を空けておいてください。日程と時間はこれから決めるので、ほかの日になることもあります。</p>${candCalendar(candDates())}${adminKeyOk ? `<p class="info">日ごとのカードの［候補日に入れる］で変えられます</p>` : ""}`;
+// 何の日か → 変わること（全員に）。お願いは、まだ回答していない候補日がある人にだけ出す（答えた人に同じことを頼まないように）。管理する人には変え方も
+function candDlgHtml() {
+  const hol = poll.holidays || [], left = L.unansweredDates(me.days, candDates());
+  const ask = left.length ? `<p class="candask">候補日のうち <b>${esc(left.map(d => L.fmtDay(d, hol)).join("・"))}</b> がまだ回答されていません。入れてもらえると決めやすくなります。</p>` : "";
+  return `<p><b>いまのところ、集まれる人が多く、場所も取れそうな日です。</b>回答が増えるたびに見直すので、入れ替わることがあります。</p>${ask}${candCalendar(candDates())}${adminKeyOk ? `<p class="info">日ごとのカードの［候補日に入れる］で変えられます</p>` : ""}`;
+}
 const openCand = () => { $("#candBody").innerHTML = candDlgHtml(); $("#candDlg").showModal(); };
 $("#candLine").addEventListener("click", e => { if (e.target.closest("#candOpen")) openCand(); });
 $("#candQuick").addEventListener("click", openCand);

@@ -526,3 +526,10 @@ test("saveErrorText：原因の種類で文を分け、エラーの名前を付�
   assert.match(L.saveErrorText(new TypeError("x")), /^保存できませんでした。ページを読み直して.*（TypeError）$/);
   assert.match(L.saveErrorText(null), /（unknown）$/);
 });
+
+test("unansweredDates：候補日のうち、まだ回答していない日", () => {
+  const days = { "2026-12-05": { sure: ["13:00-15:00"], maybe: [], ng: false }, "2026-12-06": { sure: [], maybe: [], ng: true }, "2026-12-12": { sure: [], maybe: [], ng: false, note: "未定" } };
+  assert.deepEqual(L.unansweredDates(days, ["2026-12-05", "2026-12-06", "2026-12-12", "2026-12-13"]), ["2026-12-12", "2026-12-13"]);
+  assert.deepEqual(L.unansweredDates(undefined, ["2026-12-05"]), ["2026-12-05"]);
+  assert.deepEqual(L.unansweredDates(days, []), []);
+});

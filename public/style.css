@@ -548,3 +548,4 @@ div.howto .menu .pop { left: 0; right: auto; }
 .skgrid > span { height: 40px; border-radius: 10px; }
 .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 @keyframes skpulse { 50% { opacity: .45; } }
+.candask { border-left: 3px solid var(--link); padding: 2px 0 2px 10px; font-size: 14px; }
