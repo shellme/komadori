@@ -1,6 +1,8 @@
 // コマドリの Cloud Functions
-// 管理の操作は、管理用の鍵（URL の #admin=…）を確かめてから書く（ルールだけでは鍵を確かめられないため）
-const { onCall, HttpsError } = require("firebase-functions/v2/https");
+// 書き込みはすべて /api/…（サイトと同じアドレス。Hosting から回す）で受ける。
+// 広告ブロック・VPN・DNS のフィルターで Google の通信先（ログイン・Firestore への書き込み）が止められていても、保存できるように
+// 管理の操作は、管理用の鍵（URL の #admin=…）を確かめてから書く
+const { onCall, onRequest, HttpsError } = require("firebase-functions/v2/https");
 const { initializeApp } = require("firebase-admin/app");
 const { getFirestore, FieldValue } = require("firebase-admin/firestore");
 const crypto = require("node:crypto");
@@ -25,9 +27,8 @@ async function adminPoll(pollId, key) {
 }
 
 /** 場所の空き状況を保存する（avail が null なら消す）。形は logic.js の parseAvailability の結果 */
-exports.setPlaces = onCall({ region: REGION }, async req => {
-  if (!req.auth) throw new HttpsError("unauthenticated", "ログインしていません");
-  const { pollId, key, avail } = req.data || {};
+async function setPlaces(data, device) {
+  const { pollId, key, avail } = data;
   const { ref, poll } = await adminPoll(pollId, key);
   const doc = ref.collection("places").doc("current");
   if (avail === null) { await doc.delete(); return { ok: true, places: 0, slots: 0 }; }
@@ -50,18 +51,29 @@ exports.setPlaces = onCall({ region: REGION }, async req => {
     if (!ids.has(s?.place) || !DATE.test(s.date || "") || !Array.isArray(s.free) || s.free.length > 48 || !s.free.every(f => RANGE.test(f))) throw new HttpsError("invalid-argument", "空きの行の形がちがいます");
     return { place: s.place, date: s.date, free: s.free };
   }).filter(s => s.date >= poll.from && s.date <= poll.to);
-  await doc.set({ asOf: str(avail.asOf, 40) ? avail.asOf : "", places: cleanPlaces, slots: cleanSlots, updatedAt: FieldValue.serverTimestamp(), device: req.auth.uid });
+  await doc.set({ asOf: str(avail.asOf, 40) ? avail.asOf : "", places: cleanPlaces, slots: cleanSlots, updatedAt: FieldValue.serverTimestamp(), device });
   return { ok: true, places: cleanPlaces.length, slots: cleanSlots.length };
-});
+}
 
 // ---------- 設定の編集・削除 ----------
 const toMin = s => { const m = /^(\d{1,2}):(\d{2})$/.exec(String(s ?? "")); return m ? +m[1] * 60 + +m[2] : null; };
 const fmt = m => `${String(Math.floor(m / 60)).padStart(2, "0")}:${String(m % 60).padStart(2, "0")}`;
+// 使わない日・時間帯：新しく書くのは kind: rule だけ（logic.js の normRule）。前の形も、そのまま送り直されたときのために受け付ける
+const okExcludeItem = x => x && typeof x === "object" && ["rule", "date", "weekday", "days", "time", "range"].includes(x.kind)
+  && ["date", "from", "to"].every(k => x[k] === undefined || DATE.test(x[k])) && (x.from === undefined || x.to === undefined || x.from <= x.to)
+  && (x.start === undefined || toMin(x.start) != null) && (x.end === undefined || toMin(x.end) != null)
+  && (x.weekdays === undefined || (Array.isArray(x.weekdays) && x.weekdays.length <= 7 && x.weekdays.every(w => Number.isInteger(w) && w >= 0 && w <= 6)))
+  && (x.holiday === undefined || typeof x.holiday === "boolean" || ["skip", "add", "any"].includes(x.holiday))
+  && (x.note === undefined || str(x.note, 100));
+const okExclude = v => Array.isArray(v) && v.length <= 200 && v.every(okExcludeItem);
+const okInvited = v => Array.isArray(v) && v.length <= 100 && v.every(x => str(x?.name, 40) && x.name && typeof x.required === "boolean");
+const spanDays = (from, to) => (Date.parse(to) - Date.parse(from)) / 86400000 + 1;
+/** 消す日：期間の終わりから90日 */
+const expireOf = to => { const d = new Date(to + "T00:00:00Z"); d.setUTCDate(d.getUTCDate() + 90); return d; };
 
 /** 設定を編集する（名前・アイコン・メモ・長さ・呼びたい人・対象の日・使わない日と時間帯・期間・1日の範囲・時間の刻み）。回答は消さない */
-exports.updatePoll = onCall({ region: REGION }, async req => {
-  if (!req.auth) throw new HttpsError("unauthenticated", "ログインしていません");
-  const { pollId, key } = req.data || {}, patch = req.data?.patch || {};
+async function updatePoll(data) {
+  const { pollId, key } = data, patch = data.patch && typeof data.patch === "object" ? data.patch : {};
   const { ref, poll } = await adminPoll(pollId, key);
   const out = {};
   if ("title" in patch) { if (!str(patch.title, 80) || !patch.title.trim()) throw new HttpsError("invalid-argument", "名前を入れてください"); out.title = patch.title.trim(); }
@@ -73,38 +85,27 @@ exports.updatePoll = onCall({ region: REGION }, async req => {
     out.durations = [...new Set(d)].sort((a, b) => a - b);
   }
   if ("invited" in patch) {
-    const v = patch.invited;
-    if (!Array.isArray(v) || v.length > 100 || v.some(x => !str(x?.name, 40) || !x.name || typeof x.required !== "boolean")) throw new HttpsError("invalid-argument", "呼びたい人の形がちがいます");
-    out.invited = v.map(x => ({ name: x.name, required: x.required }));
+    if (!okInvited(patch.invited)) throw new HttpsError("invalid-argument", "呼びたい人の形がちがいます");
+    out.invited = patch.invited.map(x => ({ name: x.name, required: x.required }));
   }
   if ("dayType" in patch) {
     if (!["all", "weekend", "weekday"].includes(patch.dayType)) throw new HttpsError("invalid-argument", "対象の日が正しくありません");
     out.dayType = patch.dayType;
   }
   if ("exclude" in patch) {
-    const v = patch.exclude;
-    // 新しく書くのは kind: rule だけ（logic.js の normRule）。前の形も、そのまま送り直されたときのために受け付ける
-    const okItem = x => x && ["rule", "date", "weekday", "days", "time", "range"].includes(x.kind)
-      && ["date", "from", "to"].every(k => x[k] === undefined || DATE.test(x[k])) && (x.from === undefined || x.to === undefined || x.from <= x.to)
-      && (x.start === undefined || toMin(x.start) != null) && (x.end === undefined || toMin(x.end) != null)
-      && (x.weekdays === undefined || (Array.isArray(x.weekdays) && x.weekdays.length <= 7 && x.weekdays.every(w => Number.isInteger(w) && w >= 0 && w <= 6)))
-      && (x.holiday === undefined || typeof x.holiday === "boolean" || ["skip", "add", "any"].includes(x.holiday))
-      && (x.note === undefined || str(x.note, 100));
-    if (!Array.isArray(v) || v.length > 200 || !v.every(okItem)) throw new HttpsError("invalid-argument", "使わない日・時間帯の形がちがいます");
-    out.exclude = v;
+    if (!okExclude(patch.exclude)) throw new HttpsError("invalid-argument", "使わない日・時間帯の形がちがいます");
+    out.exclude = patch.exclude;
   }
   if ("from" in patch || "to" in patch) {
     // 期間：延ばす・縮めるどちらも可。回答は消さない（期間の外の日は画面に出ないだけ）。1日の範囲・刻みは変えない
     const from = patch.from, to = patch.to;
     if (!DATE.test(from || "") || !DATE.test(to || "") || from > to) throw new HttpsError("invalid-argument", "期間を正しく入れてください");
-    const days = (Date.parse(to) - Date.parse(from)) / 86400000 + 1;
-    if (days > 92) throw new HttpsError("invalid-argument", "期間は3か月までです");
+    if (spanDays(from, to) > 92) throw new HttpsError("invalid-argument", "期間は3か月までです");
     out.from = from; out.to = to;
     const h = patch.holidays;   // 祝日の一覧（画面が日本の祝日から期間の分を選んで送る）
     if (!Array.isArray(h) || h.length > 40 || h.some(d => !DATE.test(d) || d < from || d > to)) throw new HttpsError("invalid-argument", "祝日の形がちがいます");
     out.holidays = h;
-    const exp = new Date(to + "T00:00:00Z"); exp.setUTCDate(exp.getUTCDate() + 90);   // 期間の終わりから90日で消す
-    out.expireAt = exp;
+    out.expireAt = expireOf(to);
   }
   if ("step" in patch || "dayStart" in patch || "dayEnd" in patch) {
     // 1日の範囲・時間の刻み：回答は消さない（範囲の外は出ないだけ。1時間刻みにすると回答は1時間に丸めて数える）
@@ -126,15 +127,91 @@ exports.updatePoll = onCall({ region: REGION }, async req => {
   if (!Object.keys(out).length) throw new HttpsError("invalid-argument", "変えるものがありません");
   await ref.update(out);
   return { ok: true };
-});
+}
 
 /** 調整を削除する（回答・履歴・場所の空き状況もまとめて） */
-exports.deletePoll = onCall({ region: REGION }, async req => {
-  if (!req.auth) throw new HttpsError("unauthenticated", "ログインしていません");
-  const { pollId, key } = req.data || {};
-  const { ref } = await adminPoll(pollId, key);
+async function deletePoll(data) {
+  const { ref } = await adminPoll(data.pollId, data.key);
   await db.recursiveDelete(ref);
   return { ok: true };
+}
+
+// ---------- 調整を作る・答える ----------
+const ID_ABC = "abcdefghijkmnpqrstuvwxyz23456789";
+const newId = n => Array.from(crypto.randomBytes(n), b => ID_ABC[b % ID_ABC.length]).join("");
+const bad = msg => { throw new HttpsError("invalid-argument", msg); };
+
+/** 調整を作る。ID はここで決める。管理用の鍵は画面で作り、ハッシュだけ受け取る */
+async function createPoll(data, device) {
+  const p = data.poll && typeof data.poll === "object" ? data.poll : {};
+  const title = str(p.title, 80) ? p.title.trim() : "";
+  if (!title) bad("名前を入れてください");
+  if (!str(p.emoji ?? "", 16)) bad("アイコンが長すぎます");
+  if (!str(p.note ?? "", 1000)) bad("メモが長すぎます");
+  if (!DATE.test(p.from || "") || !DATE.test(p.to || "") || p.from > p.to) bad("期間を正しく入れてください");
+  if (spanDays(p.from, p.to) > 92) bad("期間は3か月までです");
+  if (![30, 60].includes(p.step)) bad("刻みは30分か1時間にしてください");
+  const s0 = toMin(p.dayStart), e0 = toMin(p.dayEnd);
+  if (s0 == null || e0 == null || s0 >= e0 || e0 > 1440 || s0 % p.step || e0 % p.step) bad("1日の範囲を正しく入れてください");
+  if (!Array.isArray(p.durations) || !p.durations.length || p.durations.length > 8 || p.durations.some(d => ![60, 120, 180].includes(d) || d % p.step)) bad("長さが正しくありません");
+  if (!["all", "weekend", "weekday", undefined].includes(p.dayType)) bad("対象の日が正しくありません");
+  if (!okExclude(p.exclude ?? [])) bad("使わない日・時間帯の形がちがいます");
+  if (!okInvited(p.invited ?? [])) bad("呼びたい人の形がちがいます");
+  const holidays = p.holidays ?? [];
+  if (!Array.isArray(holidays) || holidays.length > 40 || holidays.some(d => !DATE.test(d) || d < p.from || d > p.to)) bad("祝日の形がちがいます");
+  if (!/^[0-9a-f]{64}$/.test(data.adminKeyHash || "")) bad("管理用の鍵の形がちがいます");
+  const id = newId(20);
+  await db.doc(`polls/${id}`).create({
+    title, emoji: p.emoji || "", note: p.note || "", from: p.from, to: p.to, dayStart: fmt(s0), dayEnd: fmt(e0), step: p.step,
+    durations: [...new Set(p.durations)].sort((a, b) => a - b), ...(p.dayType && p.dayType !== "all" ? { dayType: p.dayType } : {}),
+    exclude: p.exclude || [], invited: (p.invited || []).map(x => ({ name: x.name, required: x.required })), holidays,
+    adminKeyHash: data.adminKeyHash, createdAt: FieldValue.serverTimestamp(), expireAt: expireOf(p.to), device,
+  });
+  return { ok: true, id };
+}
+
+const okRanges = v => Array.isArray(v) && v.length <= 48 && v.every(r => RANGE.test(r));
+const okDay = d => d && typeof d === "object" && !Array.isArray(d)
+  && Object.keys(d).every(k => ["sure", "maybe", "ng", "note"].includes(k))
+  && (d.sure === undefined || okRanges(d.sure)) && (d.maybe === undefined || okRanges(d.maybe))
+  && (d.ng === undefined || typeof d.ng === "boolean") && (d.note === undefined || str(d.note, 500));
+
+/** 答えを保存する（その人の答えをまるごと置き換え、履歴を1つ足す）。誰の答えでも直せる（device は直した端末の印として残す） */
+async function saveAnswer(data, device) {
+  const { pollId, personId, name, days, dates } = data;
+  if (!str(pollId, 40) || !/^[a-z0-9]{20}$/.test(pollId)) bad("日程調整がまちがっています");
+  if (!str(personId, 40) || !/^[a-z0-9]{1,40}$/.test(personId)) bad("回答の ID がまちがっています");
+  const nm = str(name, 40) ? name.trim() : "";
+  if (!nm) bad("名前を入れてください");
+  if (!days || typeof days !== "object" || Array.isArray(days) || Object.keys(days).length > 100 || !Object.entries(days).every(([k, d]) => DATE.test(k) && okDay(d))) bad("回答の形がちがいます");
+  if (!Array.isArray(dates) || dates.length > 100 || dates.some(d => !DATE.test(d || ""))) bad("変えた日の形がちがいます");
+  const ref = db.doc(`polls/${pollId}`), snap = await ref.get();
+  if (!snap.exists) throw new HttpsError("not-found", "日程調整が見つかりません");
+  const required = (snap.get("invited") || []).some(x => x.required && x.name === nm);
+  const person = ref.collection("people").doc(personId), batch = db.batch();
+  batch.set(person, { name: nm, required, note: "", days, updatedAt: FieldValue.serverTimestamp(), device });
+  batch.set(person.collection("log").doc(), { at: FieldValue.serverTimestamp(), device, name: nm, dates });
+  await batch.commit();
+  return { ok: true };
+}
+
+// ---------- /api/… の受け口 ----------
+const ROUTES = { create: createPoll, answer: saveAnswer, setPlaces, updatePoll, deletePoll };
+exports.api = onRequest({ region: REGION, memory: "256MiB", maxInstances: 10 }, async (req, res) => {
+  res.set("Cache-Control", "no-store");
+  const op = req.path.replace(/^\/api/, "").replace(/^\//, "");
+  const send = (status, body) => res.status(status).json(body);
+  if (req.method !== "POST" || !Object.hasOwn(ROUTES, op)) return send(404, { ok: false, error: { code: "not-found", message: "見つかりません" } });
+  const data = req.body && typeof req.body === "object" ? req.body : {};
+  // 端末の印（書いた・直した端末の記録。ログインできる端末はその uid、できない端末は画面で作った ID）
+  const device = str(data.device, 64) && /^[A-Za-z0-9_-]{6,64}$/.test(data.device) ? data.device : "unknown";
+  try {
+    send(200, await ROUTES[op](data, device));
+  } catch (e) {
+    if (e instanceof HttpsError) return send(e.httpErrorCode.status, { ok: false, error: { code: e.code, message: e.message } });
+    console.error(e);
+    send(500, { ok: false, error: { code: "internal", message: "うまくいきませんでした" } });
+  }
 });
 
 // ---------- 期限切れの削除（毎日 4時。期間の終わりから90日たった調整を消す） ----------
@@ -155,7 +232,6 @@ if (process.env.FUNCTIONS_EMULATOR === "true") {
 
 // ---------- 共有したときの表示（OGP） ----------
 // LINE・Slack などはページの JavaScript を動かさないので、/p/{id} の HTML に調整の名前・期間・アイコンを入れて返す
-const { onRequest } = require("firebase-functions/v2/https");
 const fs = require("node:fs");
 const path = require("node:path");
 const { ogpFor, ogpHtml, escHtml, paddedIcon, TW } = require("./ogp.js");

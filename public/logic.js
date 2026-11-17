@@ -711,7 +711,7 @@ export function mergeRecent(a = [], b = [], max = RECENT_MAX) {
 // ---------- 保存できなかったときの文 ----------
 /** エラーの種類ごとに、どうすればよいかを返す。末尾にエラーの名前を付ける（相談を受けたときに、スクリーンショットで原因が分かるように） */
 export function saveErrorText(err) {
-  const code = String(err?.code || err?.name || "unknown").replace(/^(auth|firestore)\//, "");
+  const code = String(err?.code || err?.name || "unknown").replace(/^(auth|firestore|api)\//, "");
   const offline = ["unavailable", "deadline-exceeded", "network-request-failed"];
   const auth = ["permission-denied", "unauthenticated", "user-token-expired", "invalid-user-token", "user-disabled", "internal-error", "admin-restricted-operation"];
   const msg = offline.includes(code) ? "通信できませんでした。電波のよいところで、もう一度押してください"

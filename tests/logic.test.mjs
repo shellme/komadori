@@ -525,6 +525,7 @@ test("saveErrorText：原因の種類で文を分け、エラーの名前を付�
   assert.match(L.saveErrorText({ code: "auth/user-token-expired" }), /Safari.*（user-token-expired）$/);
   assert.match(L.saveErrorText(new TypeError("x")), /^保存できませんでした。ページを読み直して.*（TypeError）$/);
   assert.match(L.saveErrorText(null), /（unknown）$/);
+  assert.match(L.saveErrorText({ code: "api/invalid-argument" }), /^保存できませんでした。ページを読み直して.*（invalid-argument）$/);
 });
 
 test("unansweredDates：候補日のうち、まだ回答していない日", () => {
