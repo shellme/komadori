@@ -685,6 +685,8 @@ export function filterPlaces(avail, { groups = [], group = "", q = "" } = {}) {
 // ---------- 回答の進み具合 ----------
 /** その日に回答したか（どこか1つでも入れた、または参加不可にした） */
 export const answeredOn = (days, iso) => { const d = days?.[iso]; return !!d && (!!d.ng || (d.sure || []).length > 0 || (d.maybe || []).length > 0); };
+/** 日の一覧のうち、まだ回答していない日（候補日のうち、その人が答えていない日を出すのに使う） */
+export const unansweredDates = (days, dates) => (dates || []).filter(d => !answeredOn(days, d));
 /** 人ごとの進み具合：使える日のうち回答していない日の数 */
 export function progress(poll, people) {
   const dates = activeDates(poll);
