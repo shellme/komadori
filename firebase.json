@@ -9,6 +9,13 @@
     "cleanUrls": true,
     "rewrites": [
       {
+        "source": "/api/**",
+        "function": {
+          "functionId": "api",
+          "region": "asia-northeast1"
+        }
+      },
+      {
         "source": "/p/**",
         "function": {
           "functionId": "pollPage",

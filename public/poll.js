@@ -2,7 +2,7 @@
 //   時間を入力：回答の状況の行・⚡ まとめて入力（曜日ごと）・未回答／すべて（件数）・月の切り替え・
 //              歯車（マスを押したときの動き・ロック）・日ごとの ⋯（コメント・この日の入力を消す）・まとめて・× 参加不可・取り消す
 //   みんなの状況：条件（集まりたい長さ・対象の日・参加できる人数・並べ方）・日ごとの人数のマス（+調整）・おすすめの時間・参加できない人・コメント
-import { db, ready, currentUid, call, doc, getDoc, setDoc, addDoc, collection, onSnapshot, serverTimestamp } from "./fb.js";
+import { db, api, doc, getDoc, collection, onSnapshot } from "./fb.js";
 import * as L from "./logic.js";
 import { JP_HOLIDAYS } from "./holidays.js";
 import { $, esc, copy, saveFile, randomId, sha256, store, remember, toast, toastUndo, drawEmoji, setFavicon, firstEmoji, growAll, grow } from "./ui.js";
@@ -38,7 +38,6 @@ const todayIso = () => { const d = new Date(); return `${d.getFullYear()}-${Stri
 
 // ---------- 読み込み ----------
 async function load() {
-  await ready;
   const snap = pollId.length === 20 ? await getDoc(doc(db, "polls", pollId)).catch(() => null) : null;
   $("#loading").hidden = true;
   if (!snap?.exists()) { $("#missing").hidden = false; return; }
@@ -127,7 +126,6 @@ $("#who").addEventListener("change", e => {
   renderWho(); renderDays();
   if (v === "__new") $("#name").focus();
 });
-const isRequired = name => (poll.invited || []).some(x => x.required && x.name === name);
 // 名前を変えたら保存（すでに回答している人だけ。はじめての人は時間を押したときに保存）
 $("#name").addEventListener("change", () => {
   if (me.id && $("#name").value.trim()) { save([]); whoEditing = false; renderWho(); toast("名前を変えました"); }
@@ -152,9 +150,7 @@ function save(changedDates) {
   const dist = d => d < poll.from ? poll.from.localeCompare(d) && (Date.parse(poll.from) - Date.parse(d)) : d > poll.to ? Date.parse(d) - Date.parse(poll.to) : 0;
   const id = me.id, days = Object.fromEntries(Object.entries(me.days).sort((a, b) => dist(a[0]) - dist(b[0])).slice(0, 100));
   saving = saving.then(async () => {
-    const uid = await currentUid();
-    await setDoc(doc(db, "polls", pollId, "people", id), { name, required: isRequired(name), note: "", days, updatedAt: serverTimestamp(), device: uid });
-    await addDoc(collection(db, "polls", pollId, "people", id, "log"), { at: serverTimestamp(), device: uid, name, dates: changedDates.slice(0, 100) });
+    await api("answer", { pollId, personId: id, name, days, dates: changedDates.slice(0, 100) });
     for (const d of changedDates) { const s = document.querySelector(`#days [data-date="${d}"] .saved`); if (s) s.textContent = "保存しました"; }
   }).catch(err => { console.error(err); toast(L.saveErrorText(err)); })
     .finally(() => changedDates.forEach(d => dirtyDays.delete(d)));
@@ -699,8 +695,8 @@ async function toggleCand(iso) {
   const before = poll.candDates || [], next = isCand(iso) ? candDates().filter(d => d !== iso) : [...candDates(), iso].sort();
   poll = { ...poll, candDates: next };
   renderPlan(); renderDays();
-  try { await call("updatePoll", { pollId, key: adminKeyOk, patch: { candDates: next } }); toast(next.includes(iso) ? "候補日に入れました（みんなに見えます）" : "候補日から外しました"); }
-  catch (err) { poll = { ...poll, candDates: before }; renderPlan(); renderDays(); toast(err?.code?.startsWith("functions/") ? `保存できませんでした：${err.message}` : L.saveErrorText(err)); }
+  try { await api("updatePoll", { pollId, key: adminKeyOk, patch: { candDates: next } }); toast(next.includes(iso) ? "候補日に入れました（みんなに見えます）" : "候補日から外しました"); }
+  catch (err) { poll = { ...poll, candDates: before }; renderPlan(); renderDays(); toast(err?.code?.startsWith("api/") ? `保存できませんでした：${err.message}` : L.saveErrorText(err)); }
 }
 
 // 候補の枠に空いている場所：人数に合う場所 → 人数の決まりがない場所 → 広めの場所の順。入りきらない場所は数だけ出す
@@ -847,7 +843,7 @@ $("#edSave").addEventListener("click", async () => {
   $("#edErrors").innerHTML = errs.map(x => `<div>${esc(x)}</div>`).join("");
   if (errs.length) return;
   $("#edSave").disabled = true;
-  try { await call("updatePoll", { pollId, key: adminKeyOk, patch }); toast("設定を保存しました"); $("#editDlg").close(); }
+  try { await api("updatePoll", { pollId, key: adminKeyOk, patch }); toast("設定を保存しました"); $("#editDlg").close(); }
   catch (err) { console.error(err); $("#edErrors").textContent = err.message || "保存できませんでした"; }
   finally { $("#edSave").disabled = false; }
 });
@@ -856,7 +852,7 @@ $("#pollDel").addEventListener("click", async e => {
   if (arm(b, "本当に削除", "#editNote", "回答・場所の空き状況もすべて消え、戻せません。もう一度押すと削除します")) return;
   b.disabled = true;
   try {
-    await call("deletePoll", { pollId, key: adminKeyOk });
+    await api("deletePoll", { pollId, key: adminKeyOk });
     await forget(pollId).catch(err => console.error(err));
     location.href = "/";
   } catch (err) { console.error(err); toast("削除できませんでした"); b.disabled = false; }
@@ -907,7 +903,7 @@ $("#placesSave").addEventListener("click", async () => {
   if (!parsed) return;
   $("#placesSave").disabled = true;
   try {
-    const r = await call("setPlaces", { pollId, key: adminKeyOk, avail: { asOf: $("#placesAsOf").value.trim() || parsed.asOf || "", places: parsed.places, slots: parsed.slots } });
+    const r = await api("setPlaces", { pollId, key: adminKeyOk, avail: { asOf: $("#placesAsOf").value.trim() || parsed.asOf || "", places: parsed.places, slots: parsed.slots } });
     toast(`場所の空き状況を保存しました（${r.places}か所）`);
     $("#placesText").value = ""; grow($("#placesText")); readPlaces(); $("#placesDlg").close();
   } catch (err) { console.error(err); toast(err.message || "保存できませんでした"); $("#placesSave").disabled = false; }
@@ -916,7 +912,7 @@ $("#placesDel").addEventListener("click", async e => {
   const b = e.currentTarget;
   if (arm(b, "本当に消す", "#placesNote", "貼った空き状況を消します。もう一度押すと消します")) return;
   disarm(b, "貼った空き状況を消す", "#placesNote");
-  try { await call("setPlaces", { pollId, key: adminKeyOk, avail: null }); toast("場所の空き状況を消しました"); $("#placesDlg").close(); }
+  try { await api("setPlaces", { pollId, key: adminKeyOk, avail: null }); toast("場所の空き状況を消しました"); $("#placesDlg").close(); }
   catch (err) { console.error(err); toast("消せませんでした"); }
 });
 

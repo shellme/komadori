@@ -1,5 +1,5 @@
 // トップと「日程調整をつくる」
-import { db, ready, doc, setDoc, serverTimestamp, Timestamp } from "./fb.js";
+import { api } from "./fb.js";
 import * as L from "./logic.js";
 import { JP_HOLIDAYS } from "./holidays.js";
 import { $, esc, copy, randomId, sha256, store, remember, drawEmoji, firstEmoji, toast } from "./ui.js";
@@ -143,16 +143,9 @@ $("#create").addEventListener("submit", async e => {
 
   $("#submit").disabled = true;
   try {
-    const uid = await ready;
-    const id = randomId(20), key = randomId(24);
-    await setDoc(doc(db, "polls", id), {
-      ...p,
-      holidays: JP_HOLIDAYS.filter(d => d >= p.from && d <= p.to),
-      adminKeyHash: await sha256(key),
-      createdAt: serverTimestamp(),
-      expireAt: Timestamp.fromDate(new Date(L.addDays(p.to, 90) + "T00:00:00")),   // 期間の終わりから90日で消す（段階4）
-      device: uid,
-    });
+    // 管理用の鍵はこの端末で作り、送るのはハッシュだけ。ID・作った日時・消す日（期間の終わりから90日）は /api が決める
+    const key = randomId(24);
+    const { id } = await api("create", { poll: { ...p, holidays: JP_HOLIDAYS.filter(d => d >= p.from && d <= p.to) }, adminKeyHash: await sha256(key) });
     remember({ id, title: p.title, emoji, admin: key });
     made = true;
     syncRecent().catch(err => console.error(err));
@@ -170,7 +163,7 @@ $("#create").addEventListener("submit", async e => {
     scrollTo(0, 0);
   } catch (err) {
     console.error(err);
-    $("#errors").textContent = "つくれませんでした。通信を確かめて、もう一度押してください。";
+    $("#errors").textContent = err?.code?.startsWith("api/") ? `つくれませんでした：${err.message}` : `つくれませんでした。通信を確かめて、もう一度押してください。（${err?.code || "unknown"}）`;
   } finally {
     $("#submit").disabled = false;
   }
